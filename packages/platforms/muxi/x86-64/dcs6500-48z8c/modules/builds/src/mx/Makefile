@@ -1,0 +1,14 @@
+obj-m += switch_mxsonic_switch.o
+obj-m += switch_mxsonic_syseeprom.o
+obj-m += switch_mxsonic_cpld.o
+obj-m += switch_mxsonic_sysled.o
+obj-m += switch_mxsonic_fan.o
+obj-m += switch_mxsonic_transceiver.o
+obj-m += switch_mxsonic_watchdog.o
+obj-m += switch_mxsonic_psu.o
+obj-m += switch_mxsonic_sensor.o
+obj-m += switch_mxsonic_fpga.o
+obj-m += switch_mxsonic_cpu.o
+obj-m += switch_mxsonic_avs.o
+obj-m += switch_mxsonic_bmc.o
+obj-m += switch_mxsonic_pcie.o

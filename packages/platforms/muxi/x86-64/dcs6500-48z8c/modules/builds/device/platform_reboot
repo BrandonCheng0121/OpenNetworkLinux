@@ -1,0 +1,72 @@
+#!/bin/bash
+
+Fpga_flag="/run/fpga_flag"
+Cpld_flag1="/run/cpld1_flag"
+Cpld_flag2="/run/cpld2_flag"
+VERBOSE="yes"
+function debug()
+{
+	if [[ x"${VERBOSE}" == x"yes" ]]; then
+		echo `date` $@
+	fi
+	logger "$@"
+}
+
+# recode hw info
+python /usr/local/bin/recode_hw_info.py
+# just cpld1 ver >= 1.b,support refresh fpga
+CPLD1_VER_1_BASE=0x01
+CPLD1_VER_2_BASE=0x0b
+cpld1_ver_1_cur=`busybox devmem 0xfc801000 8`
+cpld1_ver_2_cur=`busybox devmem 0xfc801001 8`
+if [[ $cpld1_ver_1_cur -ge $CPLD1_VER_1_BASE ]] || [[ $cpld1_ver_2_cur -ge $CPLD1_VER_2_BASE ]]; then
+	cpld_support_refresh_fpga=1
+	debug "cpld_support_refresh_fpga=1"
+else
+	cpld_support_refresh_fpga=0
+	debug "cpld_support_refresh_fpga=0"
+fi
+
+if [ -f "$Cpld_flag2" ]; then
+	rm $Cpld_flag2
+	debug "PORT CPLD update, running PORT CPLD refresh..."
+	/usr/local/bin/cpldupd_sec -u MX7327 /etc/muxi/fw/6865-48s8cq-w1/components_fw/MX7327_CPLD2_refresh.sign.vme -c DO_REAL_TIME_ISP 1
+	sleep 1
+else
+	debug "PORT CPLD update, no need to run PORT CPLD refresh..."
+fi
+
+if [ -f "$Cpld_flag1" ]; then
+	rm $Cpld_flag1
+	debug "SYS CPLD update, running SYS CPLD refresh..."
+	sync;sync;sync
+	/usr/local/bin/cpldupd_sec -u MX7327 /etc/muxi/fw/6865-48s8cq-w1/components_fw/MX7327_CPLD1_refresh.sign.vme -c DO_REAL_TIME_ISP 1
+	sleep 1
+else
+	debug "SYS CPLD update, no need to run SYS CPLD refresh..."
+fi
+
+if [ -f "$Fpga_flag" ]; then
+	if [ $cpld_support_refresh_fpga -eq 1 ]; then
+		debug "FPGA update, running refresh FPGA through CPLD1 GPIO..."
+		rm $Fpga_flag
+		sync;sync;sync
+		setpci -s 00:1c.0 5c.B=0x10 # close pci errfatal
+		sleep 1
+		busybox devmem 0xfc801087 8 0x0
+		sleep 1
+	else
+		debug "FPGA update, running refresh FPGA through CPLD1 refresh..."
+		rm $Fpga_flag
+		sync;sync;sync
+		/usr/local/bin/cpldupd_sec -u MX7327 /etc/muxi/fw/6865-48s8cq-w1/components_fw/MX7327_CPLD1_refresh.sign.vme -c DO_REAL_TIME_ISP 1
+		sleep 1
+	fi
+fi
+
+# change bios to main
+busybox devmem 0xFC801070 8 0x01
+# outb 0x6321 0x0
+sleep 1
+sync;sync;sync
+outb 0xcf9 0xe

@@ -1,0 +1,1 @@
+!include $ONL_TEMPLATES/arch-vendor-modules.yml ARCH=amd64 VENDOR=muxi KERNELS="onl-kernel-5.4-lts-x86-64-all:amd64"

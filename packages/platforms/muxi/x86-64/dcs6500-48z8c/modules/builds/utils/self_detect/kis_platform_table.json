@@ -1,0 +1,760 @@
+
+{
+    "bsp_version_const":
+        {"val":"0.0.3","err_details":"Driver version is no match "},
+
+    "eth_count":
+        {"val":"56","start_num":"1"},
+    "fpga_count":
+        {"val":"1","start_num":"1"},
+    "cpld_count":
+        {"val":"4","start_num":"1"},
+    "sensor_curr_count":
+        {"val":"8","start_num":"0"},
+    "sensor_in_count":
+        {"val":"24","start_num":"0"},
+    "sensor_temp_count":
+        {"val":"6","start_num":"0"},
+    "psu_temp_count":
+        {"val":"3","start_num":"0"},
+    "psu_count":
+        {"val":"2","start_num":"1"},
+    "fan_count":
+        {"val":"5","start_num":"1"},
+    "motor_count":
+        {"val":"2","start_num":"0"},
+
+    "loglevel_bit":[
+        {"val_bit":"0","details":"log level is \"error\""},
+        {"val_bit":"1","details":"log level is \"warning\""},
+        {"val_bit":"2","details":"log level is \"info\""},
+        {"val_bit":"3","details":"log level is \"debug\""}
+    ],
+
+    "led_status_enmu":[
+        {"val":"0", "expect":"1", "details":"the led is dark"},
+        {"val":"1", "expect":"1", "details":"the led is green"},
+        {"val":"2", "expect":"1", "details":"the led is yellow"},
+        {"val":"3", "expect":"1", "details":"the led is red"}
+    ],
+    "direction_enmu":[
+        {"val":"0", "expect":"0", "details":"fan direction is F2B(front to back)"},
+        {"val":"1", "expect":"0", "details":"fan direction is B2F(back to front)"}
+    ],
+
+    "fan_status_enmu":[
+        {"val":"0", "expect":"1", "details":"ABSENT, not present"},
+        {"val":"1", "expect":"1", "details":"OK, not present"},
+        {"val":"2", "expect":"1", "details":"NOT OK, present but abnormal"}
+    ],
+    "fan_led_status_enmu":[
+        {"val":"0", "expect":"1", "details":"the led is dark"},
+        {"val":"1", "expect":"1", "details":"the led is green"},
+        {"val":"2", "expect":"1", "details":"the led is yellow"},
+        {"val":"3", "expect":"1", "details":"the led is red"}
+    ],
+    "psu_status_enmu":[
+        {"val":"0", "expect":"1", "details":"ABSENT, not present"},
+        {"val":"1", "expect":"1", "details":"OK, not present"},
+        {"val":"2", "expect":"1", "details":"NOT OK, present but abnormal"}
+    ],
+    "psu_led_status_enmu":[
+        {"val":"0", "expect":"1", "details":"the led is dark"},
+        {"val":"1", "expect":"1", "details":"the led is green"},
+        {"val":"2", "expect":"1", "details":"the led is yellow"},
+        {"val":"3", "expect":"1", "details":"the led is red"}
+    ],
+    "eth_present_enmu":[
+        {"val":"0", "expect":"1", "details":"the port is no present"},
+        {"val":"1", "expect":"1", "details":"the port is present"}
+    ],
+    "eth_power_on_enmu":[
+        {"val":"0", "expect":"1", "details":"the port is power off"},
+        {"val":"1", "expect":"1", "details":"the port is power on"}
+    ],
+
+    "kis": {
+        "source_type":"node",
+        "path_cmd":"/sys/switch",
+        "data_type":"path",
+        "syseeprom": {
+            "source_type":"node",
+            "path_cmd":"/syseeprom",
+            "data_type":"path",
+            "help":{
+                "source_type":"node",
+                "path_cmd":"/debug",
+                "data_type":"string"
+            },
+            "loglevel": {
+                "source_type":"node",
+                "path_cmd":"/loglevel",
+                "data_type":"loglevel_bit"
+            },
+            "eeprom": {
+                "source_type":"node",
+                "path_cmd":"/eeprom",
+                "data_type":"hex"
+            },
+            "bsp_version": {
+                "source_type":"node",
+                "path_cmd":"/bsp_version",
+                "data_type":"bsp_version_const"
+            }
+        },
+        "fan": {
+            "source_type":"node",
+            "path_cmd":"/fan",
+            "data_type":"path",
+            
+            "help":{
+                "source_type":"node",
+                "path_cmd":"/debug",
+                "data_type":"string"
+            },
+            "loglevel": {
+                "source_type":"node",
+                "path_cmd":"/loglevel",
+                "data_type":"loglevel_bit"
+            },
+            "num": {
+                "source_type":"node",
+                "path_cmd":"/num",
+                "data_type":"int"
+            },
+            "fan_id":{
+                "source_type":"node",
+                "path_cmd":"/fan",
+                "data_type":"fan_count",
+                "model_name":{
+                    "source_type":"node",
+                    "path_cmd":"/model_name",
+                    "data_type":"string"
+                },
+
+                "serial_number":{
+                    "source_type":"node",
+                    "path_cmd":"/serial_number",
+                    "data_type":"string"
+                },
+                "vendor":{
+                    "source_type":"node",
+                    "path_cmd":"/vendor",
+                    "data_type":"string"
+                },
+                "part_number":{
+                    "source_type":"node",
+                    "path_cmd":"/part_number",
+                    "data_type":"string"
+                },
+                "hardware_version":{
+                    "source_type":"node",
+                    "path_cmd":"/hardware_version",
+                    "data_type":"string"
+                },
+                "status":{
+                    "source_type":"node",
+                    "path_cmd":"/status",
+                    "data_type":"fan_status_enmu"
+                },
+                "led_status":{
+                    "source_type":"node",
+                    "path_cmd":"/led_status",
+                    "data_type":"fan_led_status_enmu"
+                },
+                "num_motors":{
+                    "source_type":"node",
+                    "path_cmd":"/num_motors",
+                    "data_type":"int"
+                },
+                "motor":{
+                    "source_type":"node",
+                    "path_cmd":"/motor",
+                    "data_type":"motor_count",
+                    "speed":{
+                        "source_type":"node",
+                        "path_cmd":"/speed",
+                        "data_type":"int"
+                    },
+                    "speed_tolerance":{
+                        "source_type":"node",
+                        "path_cmd":"/speed_tolerance",
+                        "data_type":"int"
+                    },
+                    "speed_target":{
+                        "source_type":"node",
+                        "path_cmd":"/speed_target",
+                        "data_type":"int"
+                    },
+                    "ratio":{
+                        "source_type":"node",
+                        "path_cmd":"/ratio",
+                        "data_type":"int"
+                    },
+                    "direction":{
+                        "source_type":"node",
+                        "path_cmd":"/direction",
+                        "data_type":"direction_enmu"
+                    }
+                }
+            }
+        },
+
+        "psu": {
+            "source_type":"node",
+            "path_cmd":"/psu",
+            "data_type":"path",
+            "debug":{
+                "source_type":"node",
+                "path_cmd":"/debug",
+                "data_type":"string"
+            },
+            "loglevel": {
+                "source_type":"node",
+                "path_cmd":"/loglevel",
+                "data_type":"loglevel_bit"
+            },
+            "num": {
+                "source_type":"node",
+                "path_cmd":"/num",
+                "data_type":"int"
+            },
+            "psu_id":{
+                "source_type":"node",
+                "path_cmd":"/psu",
+                "data_type":"psu_count",
+                "model_name":{
+                    "source_type":"node",
+                    "path_cmd":"/model_name",
+                    "data_type":"string"
+                },
+                "serial_number":{
+                    "source_type":"node",
+                    "path_cmd":"/serial_number",
+                    "data_type":"string"
+                },
+                "date":{
+                    "source_type":"node",
+                    "path_cmd":"/date",
+                    "data_type":"string"
+                },
+                "vendor":{
+                    "source_type":"node",
+                    "path_cmd":"/vendor",
+                    "data_type":"string"
+                },
+                "part_number":{
+                    "source_type":"node",
+                    "path_cmd":"/part_number",
+                    "data_type":"string"
+                },
+                "hardware_version":{
+                    "source_type":"node",
+                    "path_cmd":"/hardware_version",
+                    "data_type":"string"
+                },
+
+                "alarm":{
+                    "source_type":"node",
+                    "path_cmd":"/alarm",
+                    "data_type":"float"
+                },
+                "alarm_threshold_curr":{
+                    "source_type":"node",
+                    "path_cmd":"/alarm_threshold_curr",
+                    "data_type":"float"
+                },
+                "alarm_threshold_vol":{
+                    "source_type":"node",
+                    "path_cmd":"/alarm_threshold_vol",
+                    "data_type":"float"
+                },
+                "max_output_power":{
+                    "source_type":"node",
+                    "path_cmd":"/max_output_power",
+                    "data_type":"float"
+                },
+                "in_curr":{
+                    "source_type":"node",
+                    "path_cmd":"/in_curr",
+                    "data_type":"float"
+                },
+                "in_vol":{
+                    "source_type":"node",
+                    "path_cmd":"/in_vol",
+                    "data_type":"float"
+                },
+                "in_power":{
+                    "source_type":"node",
+                    "path_cmd":"/in_power",
+                    "data_type":"float"
+                },
+                "out_curr":{
+                    "source_type":"node",
+                    "path_cmd":"/out_curr",
+                    "data_type":"float"
+                },
+                "out_vol":{
+                    "source_type":"node",
+                    "path_cmd":"/out_vol",
+                    "data_type":"float"
+                },
+                "out_power":{
+                    "source_type":"node",
+                    "path_cmd":"/out_power",
+                    "data_type":"float"
+                },
+
+                "status":{
+                    "source_type":"node",
+                    "path_cmd":"/status",
+                    "data_type":"psu_status_enmu"
+                },
+                "led_status":{
+                    "source_type":"node",
+                    "path_cmd":"/led_status",
+                    "data_type":"psu_led_status_enmu"
+                },
+                "type":{
+                    "source_type":"node",
+                    "path_cmd":"/type",
+                    "data_type":"na"
+                },
+
+                "num_temp_sensors":{
+                    "source_type":"node",
+                    "path_cmd":"/num_temp_sensors",
+                    "data_type":"int"
+                },
+                "temp_x": {
+                    "source_type":"node",
+                    "path_cmd":"/temp",
+                    "data_type":"psu_temp_count",
+
+                    "temp_alias":{
+                        "source_type":"node",
+                        "path_cmd":"/temp_alias",
+                        "data_type":"string"
+                    },
+                    "temp_type":{
+                        "source_type":"node",
+                        "path_cmd":"/temp_type",
+                        "data_type":"string"
+                    },
+                    "temp_max":{
+                        "source_type":"node",
+                        "path_cmd":"/temp_max",
+                        "data_type":"float"
+                    },
+                    "temp_max_hyst":{
+                        "source_type":"node",
+                        "path_cmd":"/temp_max_hyst",
+                        "data_type":"float"
+                    },
+                    "temp_min":{
+                        "source_type":"node",
+                        "path_cmd":"/temp_min",
+                        "data_type":"float"
+                    },
+                    "temp_input":{
+                        "source_type":"node",
+                        "path_cmd":"/temp_input",
+                        "data_type":"float"
+                    }
+                },
+                "fan_speed":{
+                    "source_type":"node",
+                    "path_cmd":"/fan_speed",
+                    "data_type":"string"
+                }
+            }
+        },
+
+        "sensor":{
+            "source_type":"node",
+            "path_cmd":"/sensor",
+            "data_type":"path",
+            "help":{
+                "source_type":"node",
+                "path_cmd":"/debug",
+                "data_type":"string"
+            },
+            "loglevel":{
+                "source_type":"node",
+                "path_cmd":"/loglevel",
+                "data_type":"loglevel_bit"
+            },
+            "num_temp_sensors":{
+                "source_type":"node",
+                "path_cmd":"/num_temp_sensors",
+                "data_type":"int"
+            },
+            "temp_id": {
+                "source_type":"node",
+                "path_cmd":"/temp",
+                "data_type":"sensor_temp_count",
+
+                "temp_alias":{
+                    "source_type":"node",
+                    "path_cmd":"/temp_alias",
+                    "data_type":"string"
+                },
+                "temp_type":{
+                    "source_type":"node",
+                    "path_cmd":"/temp_type",
+                    "data_type":"string"
+                },
+                "temp_max":{
+                    "source_type":"node",
+                    "path_cmd":"/temp_max",
+                    "data_type":"float"
+                },
+                "temp_max_hyst":{
+                    "source_type":"node",
+                    "path_cmd":"/temp_max_hyst",
+                    "data_type":"float"
+                },
+                "temp_min":{
+                    "source_type":"node",
+                    "path_cmd":"/temp_min",
+                    "data_type":"float"
+                },
+                "temp_input":{
+                    "source_type":"node",
+                    "path_cmd":"/temp_input",
+                    "data_type":"float"
+                }
+            },
+            "num_in_sensors":{
+                "source_type":"node",
+                "path_cmd":"/num_in_sensors",
+                "data_type":"int"
+            },
+            "in_id":{
+                "source_type":"node",
+                "path_cmd":"/in",
+                "data_type":"sensor_in_count",
+                "in_alarm":{
+                    "source_type":"node",
+                    "path_cmd":"/in_alarm",
+                    "data_type":"float"
+                },
+                "in_alias":{
+                    "source_type":"node",
+                    "path_cmd":"/in_alias",
+                    "data_type":"string"
+                },
+                "in_type":{
+                    "source_type":"node",
+                    "path_cmd":"/in_type",
+                    "data_type":"string"
+                },
+                "in_max":{
+                    "source_type":"node",
+                    "path_cmd":"/in_max",
+                    "data_type":"float"
+                },
+                "in_min":{
+                    "source_type":"node",
+                    "path_cmd":"/in_min",
+                    "data_type":"float"
+                },
+                "in_input":{
+                    "source_type":"node",
+                    "path_cmd":"/in_input",
+                    "data_type":"float"
+                }
+            },
+            "num_curr_sensors":{
+                "source_type":"node",
+                "path_cmd":"/num_curr_sensors",
+                "data_type":"int"
+            },
+            "curr_id":{
+                "source_type":"node",
+                "path_cmd":"/curr",
+                "data_type":"sensor_curr_count",
+                "curr_alias":{
+                    "source_type":"node",
+                    "path_cmd":"/curr_alias",
+                    "data_type":"string"
+                },
+                "curr_average":{
+                    "source_type":"node",
+                    "path_cmd":"/curr_average",
+                    "data_type":"na"
+                },
+                "curr_type":{
+                    "source_type":"node",
+                    "path_cmd":"/curr_type",
+                    "data_type":"string"
+                },
+                "curr_max":{
+                    "source_type":"node",
+                    "path_cmd":"/curr_max",
+                    "data_type":"float"
+                },
+                "curr_min":{
+                    "source_type":"node",
+                    "path_cmd":"/curr_min",
+                    "data_type":"float"
+                },
+                "curr_input":{
+                    "source_type":"node",
+                    "path_cmd":"/curr_input",
+                    "data_type":"float"
+                }
+            }
+        },
+        "sysled":{
+            "source_type":"node",
+            "path_cmd":"/sysled",
+            "data_type":"path",
+            "help":{
+                "source_type":"node",
+                "path_cmd":"/debug",
+                "data_type":"string"
+            },
+            "loglevel": {
+                "source_type":"node",
+                "path_cmd":"/loglevel",
+                "data_type":"loglevel_bit"
+            },
+            "sys_led_status":{
+                "source_type":"node",
+                "path_cmd":"/sys_led_status",
+                "data_type":"led_status_enmu"
+            },
+            "bmc_led_status":{
+                "source_type":"node",
+                "path_cmd":"/bmc_led_status",
+                "data_type":"na"
+            },
+            "fan_led_status":{
+                "source_type":"node",
+                "path_cmd":"/fan_led_status",
+                "data_type":"led_status_enmu"
+            },
+            "psu_led_status":{
+                "source_type":"node",
+                "path_cmd":"/psu_led_status",
+                "data_type":"led_status_enmu"
+            },
+            "id_led_status":{
+                "source_type":"node",
+                "path_cmd":"/id_led_status",
+                "data_type":"na"
+            }
+        },
+        "cpld":{
+            "source_type":"node",
+            "path_cmd":"/cpld",
+            "data_type":"path",
+            "help":{
+                "source_type":"node",
+                "path_cmd":"/debug",
+                "data_type":"string"
+            },
+            "loglevel": {
+                "source_type":"node",
+                "path_cmd":"/loglevel",
+                "data_type":"loglevel_bit"
+            },
+            "num": {
+                "source_type":"node",
+                "path_cmd":"/num",
+                "data_type":"int"
+            },
+            "reboot_cause": {
+                "source_type":"node",
+                "path_cmd":"/reboot_cause",
+                "data_type":"int"
+            },
+            "cpld_id":{
+                "source_type":"node",
+                "path_cmd":"/cpld",
+                "data_type":"cpld_count",
+                "alias": {
+                    "source_type":"node",
+                    "path_cmd":"/alias",
+                    "data_type":"string"
+                },
+                "type": {
+                    "source_type":"node",
+                    "path_cmd":"/type",
+                    "data_type":"string"
+                },
+                "hw_version": {
+                    "source_type":"node",
+                    "path_cmd":"/hw_version",
+                    "data_type":"string"
+                },
+                "board_version": {
+                    "source_type":"node",
+                    "path_cmd":"/board_version",
+                    "data_type":"string"
+                }
+            }
+        },
+        "fpga":{
+            "source_type":"node",
+            "path_cmd":"/fpga",
+            "data_type":"path",
+            "help":{
+                "source_type":"node",
+                "path_cmd":"/debug",
+                "data_type":"string"
+            },
+            "loglevel": {
+                "source_type":"node",
+                "path_cmd":"/loglevel",
+                "data_type":"loglevel_bit"
+            },
+            "num": {
+                "source_type":"node",
+                "path_cmd":"/num",
+                "data_type":"int"
+            },
+            "fpga_id":{
+                "source_type":"node",
+                "path_cmd":"/fpga",
+                "data_type":"fpga_count",
+                "alias": {
+                    "source_type":"node",
+                    "path_cmd":"/alias",
+                    "data_type":"string"
+                },
+                "type": {
+                    "source_type":"node",
+                    "path_cmd":"/type",
+                    "data_type":"string"
+                },
+                "hw_version": {
+                    "source_type":"node",
+                    "path_cmd":"/hw_version",
+                    "data_type":"string"
+                },
+                "board_version": {
+                    "source_type":"node",
+                    "path_cmd":"/board_version",
+                    "data_type":"string"
+                }
+            }
+        },
+        "transceiver":{
+            "source_type":"node",
+            "path_cmd":"/transceiver",
+            "data_type":"path",
+            "debug":{
+                "source_type":"node",
+                "path_cmd":"/debug",
+                "data_type":"string"
+            },
+            "loglevel": {
+                "source_type":"node",
+                "path_cmd":"/loglevel",
+                "data_type":"loglevel_bit"
+            },
+            "power_on":{
+                "source_type":"node",
+                "path_cmd":"/power_on",
+                "data_type":"string"
+            },
+            "present": {
+                "source_type":"node",
+                "path_cmd":"/present",
+                "data_type":"string"
+            },
+            "num": {
+                "source_type":"node",
+                "path_cmd":"/num",
+                "data_type":"int"
+            },
+            
+            "eth_id":{
+                "source_type":"node",
+                "path_cmd":"/eth",
+                "data_type":"eth_count",
+                "power_on":{
+                    "source_type":"node",
+                    "path_cmd":"/power_on",
+                    "data_type":"eth_power_on_enmu"
+                },
+                "present":{
+                    "source_type":"node",
+                    "path_cmd":"/present",
+                    "data_type":"int"
+                },
+                "reset":{
+                    "source_type":"node",
+                    "path_cmd":"/reset",
+                    "data_type":"int"
+                },
+                "lpmode":{
+                    "source_type":"node",
+                    "path_cmd":"/lpmode",
+                    "data_type":"int"
+                },
+                "interrupt":{
+                    "source_type":"node",
+                    "path_cmd":"/interrupt",
+                    "data_type":"int"
+                },
+                "eeprom":{
+                    "source_type":"node",
+                    "path_cmd":"/eeprom",
+                    "data_type":"hex"
+                }
+            }
+        },
+
+        "watchdog":{
+            "source_type":"node",
+            "path_cmd":"/watchdog",
+            "data_type":"path",
+            "help":{
+                "source_type":"node",
+                "path_cmd":"/debug",
+                "data_type":"string"
+            },
+            "loglevel": {
+                "source_type":"node",
+                "path_cmd":"/loglevel",
+                "data_type":"loglevel_bit"
+            },
+
+            "identify":{
+                "source_type":"node",
+                "path_cmd":"/identify",
+                "data_type":"string"
+            },
+            "state":{
+                "source_type":"node",
+                "path_cmd":"/state",
+                "data_type":"string"
+            },
+            "timeleft":{
+                "source_type":"node",
+                "path_cmd":"/timeleft",
+                "data_type":"int"
+            },
+            "timeout":{
+                "source_type":"node",
+                "path_cmd":"/timeout",
+                "data_type":"int"
+            },
+            "reset":{
+                "source_type":"node",
+                "path_cmd":"/reset",
+                "data_type":"string"
+            },
+            "enable":{
+                "source_type":"node",
+                "path_cmd":"/enable",
+                "data_type":"string"
+            }
+        }
+
+    }
+
+}
