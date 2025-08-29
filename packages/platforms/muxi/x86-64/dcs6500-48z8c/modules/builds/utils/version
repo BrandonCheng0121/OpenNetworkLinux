@@ -1,0 +1,12 @@
+#!/bin/sh
+#!SSS
+#Title=Display version information
+#
+# [ -e /etc/version ] && cat /etc/version
+echo "Accton Diagnostic Image:0b.00.01"
+echo "kernel: `uname -s` `uname -r`"
+echo -n "date: "
+show version | grep "Build date" | cut -d " " -f 3-8
+
+#switch SDK driver version
+#[ -f /tmp/swdrv.log ] && cat /tmp/swdrv.log | grep Release | cut -d " " -f 2-10

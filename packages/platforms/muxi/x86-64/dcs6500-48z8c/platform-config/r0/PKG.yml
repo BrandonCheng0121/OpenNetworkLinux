@@ -1,0 +1,1 @@
+!include $ONL_TEMPLATES/platform-config-platform.yml ARCH=amd64 VENDOR=muxi BASENAME=x86-64-muxi-dcs6500-48z8c REVISION=r0

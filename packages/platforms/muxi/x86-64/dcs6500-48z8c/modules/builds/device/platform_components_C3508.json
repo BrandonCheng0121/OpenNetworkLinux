@@ -1,0 +1,28 @@
+{
+    "chassis": {
+        "6865-48S8CQ-W1": {
+            "component": {
+                "SYS_CPLD": {
+                    "firmware": "/etc/muxi/fw/6865-48s8cq-w1/components_fw/MX7327_CPLD1_v0205_Internal.sign.vme",
+                    "version": "2.5"
+                },
+                "PORT_CPLD": {
+                    "firmware": "/etc/muxi/fw/6865-48s8cq-w1/components_fw/MX7327_CPLD2_v0201_Internal.sign.vme",
+                    "version": "2.1"
+                },
+                "FPGA": {
+                    "firmware": "/etc/muxi/fw/6865-48s8cq-w1/components_fw/MX7327_FPGA_v4202_v0202.sign.bin",
+                    "version": "42.2"
+                },
+                "BIOS": {
+                    "firmware": "/etc/muxi/fw/6865-48s8cq-w1/components_fw/dcs6500-48z8c_c3508-bios_v43.01.00.01_me_v04.00.04.181.0.sign.bin",
+                    "version": "v43.01.00.01"
+                },
+                "BMC": {
+                    "firmware": "https://gitee.com/hw_4/morningstar_bmc/tree/master/release/6865W/V01.00.19h",
+                    "version": "1.00.19"
+                }
+            }
+        }
+    }
+}

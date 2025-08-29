@@ -1,0 +1,13 @@
+obj-m += switch_mb_driver.o
+obj-m += switch_cpld_driver.o
+obj-m += switch_fpga_driver.o
+obj-m += switch_led_driver.o
+obj-m += switch_fan_driver.o
+obj-m += switch_transceiver_driver.o
+obj-m += switch_psu_driver.o
+obj-m += switch_sensor_driver.o
+obj-m += switch_wdt_driver.o
+obj-m += switch_cpu_driver.o
+obj-m += switch_bmc_driver.o
+obj-m += switch_avs_driver.o
+obj-m += switch_pcie_driver.o
