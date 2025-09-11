@@ -83,7 +83,6 @@
 #include <linux/hwmon.h>
 #include <linux/hwmon-sysfs.h>
 #include <linux/printk.h>
-#include "libboundscheck/include/securec.h"
 #define I2C_DEBUG(...)
 /*#define I2C_DEBUG(...) printk(KERN_ALERT __VA_ARGS__)*/
 #define ERROR_DEBUG(...) printk(KERN_ALERT __VA_ARGS__)
@@ -208,15 +207,7 @@ struct fpga_pci_device {
 
 /* 10ee:7021 Maybe need modify*/
 static struct pci_device_id fpga_id_table[] = { \
-    {
-        0x10ee,     /* Vendor ID */
-        0x7021,     /* Device ID */
-        PCI_ANY_ID, /* Sub-vendor ID */
-        PCI_ANY_ID, /* Sub-device ID */
-        0,          /* Class */
-        0,          /* Class mask */
-        0,          /* Driver data */
-    },
+    { PCI_DEVICE(0x10ee, 0x7021) },
     {0,},
 };
 
@@ -340,7 +331,7 @@ int fpga_smbus_read(struct fpga_pci_device *fpga_pci_dev,
         return(-EINVAL);
     }
 
-    I2C_DEBUG("[%s] READ: %x \n", __func__, data->byte);
+    //I2C_DEBUG("[%s] READ: %x \n", __func__, data->byte);
 
     if (addr > 0x7F || channel >= MAX_CHANNEL)
     {
@@ -504,7 +495,7 @@ int fpga_smbus_read(struct fpga_pci_device *fpga_pci_dev,
         I2C_DEBUG("[13-3] i2c_txr_addr:%x i2c_txr_data:%x\n", i2c_txr_addr, i2c_txr_data);
     }
 
-    memcpy_s(data, MAX_BUFF_SIZE, buff,length);
+    memcpy(data, buff, length);
 
     up(&(fpga_pci_dev->sem[channel]));
     return(0);
@@ -586,7 +577,7 @@ int fpga_smbus_write(struct fpga_pci_device *fpga_pci_dev,
     i2c_txr_addr = I2C_TRANSMIT_RECEIVE_OFFSET + channel*0x20;
     i2c_cmd_stat_addr = I2C_COMMAND_STATUS_OFFSET + channel*0x20;
 
-    memcpy_s(buff, MAX_BUFF_SIZE, data, length);
+    memcpy(buff, data, length);
 
     /*
     1. Set the Transmit Register TXR with a value of Slave address + Write bit.
@@ -792,7 +783,7 @@ static s32 fpga_smbus_access(struct i2c_adapter *adap, u16 addr,
             break;
     }
 
-    memcpy_s(cha_num_str, 3, (adap->name+18), 2);
+    memcpy(cha_num_str, (adap->name+18), 2);
     retval = kstrtou8(cha_num_str, 10, &channel);
     if(retval == 0)
     {
@@ -1275,7 +1266,7 @@ static int fpga_pci_probe(struct pci_dev *pdev, const struct pci_device_id *id)
         /* Default timeout in interrupt mode: 200 ms */
     	fpga_pci_dev->adapter[smbus_temp_num].timeout = HZ / 5;
 
-        snprintf_s(fpga_pci_dev->adapter[smbus_temp_num].name,sizeof(fpga_pci_dev->adapter[smbus_temp_num].name), sizeof(fpga_pci_dev->adapter[smbus_temp_num].name),
+        snprintf(fpga_pci_dev->adapter[smbus_temp_num].name, sizeof(fpga_pci_dev->adapter[smbus_temp_num].name),
     		"%s%02d adapter", FPGA_SMBUS_NAME, smbus_temp_num);
 
         fpga_pci_dev->adapter[smbus_temp_num].nr = 101+smbus_temp_num;
@@ -1437,3 +1428,4 @@ module_init(fpga_module_init);
 module_exit(fpga_module_cleanup);
 
 MODULE_DEVICE_TABLE(pci, fpga_id_table);
+

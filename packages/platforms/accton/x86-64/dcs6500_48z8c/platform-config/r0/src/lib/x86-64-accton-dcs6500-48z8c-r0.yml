@@ -24,8 +24,14 @@ x86-64-accton-dcs6500-48z8c-r0:
       nopat
       console=ttyS0,115200n8
 
-  ##network:
-  ##  interfaces:
-  ##    ma1:
-  ##      name: ~
-  ##      syspath: pci0000:00/0000:00:14.0
+  interfaces:
+    ma1:
+      name: "eth0"
+    eno1:
+      name: "eth1"
+    enp3s0f1:
+      name: "eth2"
+    enp4s0f0:
+      name: "eth3"
+    enp4s0f1:
+      name: "eth4"

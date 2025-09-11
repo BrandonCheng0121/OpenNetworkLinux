@@ -5,152 +5,68 @@ import commands
 import os.path
 import time
 
-#IR3570A chip casue problem when read eeprom by i2c-block mode.
-#It happen when read 16th-byte offset that value is 0x8. So disable chip
-def disable_i2c_ir3570a(addr):
-    check_i2c="i2cget -y 0 0x4 0x1"
-    status, output = commands.getstatusoutput(check_i2c)
-    if status!=0:
-        return -1
-    cmd = "i2cset -y 0 0x%x 0xE5 0x01" % addr
-    status, output = commands.getstatusoutput(cmd)
-    cmd = "i2cset -y 0 0x%x 0x12 0x02" % addr
-    status, output = commands.getstatusoutput(cmd)
-    return status
-
-def ir3570_check():
-    check_i2c="i2cget -y 0 0x42 0x1"
-    status, output = commands.getstatusoutput(check_i2c)
-    if status!=0:
-        return -1
-    cmd = "i2cdump -y 0 0x42 s 0x9a"
-    try:
-        status, output = commands.getstatusoutput(cmd)
-        lines = output.split('\n')
-        hn = re.findall(r'\w+', lines[-1])
-        version = int(hn[1], 16)
-        if version == 0x24:  #Find IR3570A
-            ret = disable_i2c_ir3570a(4)
-        else:
-            ret = 0
-    except Exception as e:
-        print "Error on ir3570_check() e:" + str(e)
-        return -1
-    return ret
-
-def _8v89307_init():
-    script = os.path.join(os.path.dirname(os.path.realpath(__file__)), "8v89307_init.sh")
-    if os.path.exists(script):
-        status, output = commands.getstatusoutput(script)
-        print output
-        if status != 0:
-            print "Error in 8v89307_init: " + str(e)
-            return False
-    return True
-
 class OnlPlatform_x86_64_accton_dcs6500_48z8c_r0(OnlPlatformAccton,
                                               OnlPlatformPortConfig_48x25_8x100):
 
     PLATFORM='x86-64-accton-dcs6500-48z8c-r0'
     MODEL="DCS6500-48Z8C"
-    SYS_OBJECT_ID=".dcs6500.48z8c"
+    SYS_OBJECT_ID=".6500.56"
 
     def baseconfig(self):
         self.insmod('optoe')
-        self.insmod('ym2651y')
-        for m in [ 'cpld', 'fan', 'psu', 'leds' ]:
+        for m in [ 'fpga', 'cpld', 'psu', 'leds' ]:
             self.insmod("x86-64-accton-dcs6500-48z8c-%s.ko" % m)
 
-        self.new_i2c_device('pca9548', 0x77, 0)
-        ########### initialize I2C bus 1 ###########
-        # initialize multiplexer (PCA9548)
-        self.new_i2c_device('pca9548', 0x70, 1)
-        self.new_i2c_device('pca9548', 0x71, 1)
-        self.new_i2c_device('pca9548', 0x72, 24)
+        self.new_i2c_device('pca9548', 0x70, 0)
+
 
         self.new_i2c_devices([
-            # initiate chassis fan
-            ('dcs6500_48z8c_fan', 0x66, 11),
-
             # inititate LM75
-            ('lm75', 0x48, 15),
-            ('lm75', 0x49, 15),
-            ('lm75', 0x4a, 15),
-            ('lm75', 0x4b, 15),
+            ('lm75', 0x4a, 7),
+            ('lm75', 0x4b, 7),
+            ('lm75', 0x4c, 7),
             ])
+
 
         self.new_i2c_devices([
             # initialize CPLD
-            ('dcs6500_48z8c_cpld1', 0x60, 18),
-            ('dcs6500_48z8c_cpld2', 0x62, 12),
-            ('dcs6500_48z8c_cpld3', 0x64, 19),
+            ('dcs6500_48z8c_cpld1', 0x62, 157),
+            ('dcs6500_48z8c_cpld2', 0x64, 158),
             ])
 
         self.new_i2c_devices([
-                # initiate PSU-1
-                ('dcs6500_48z8c_psu1', 0x51, 17),
-                ('ym2651', 0x59, 17),
+            # initiate PSU-1
+            ('dcs6500_48z8c_psu1', 0x5a, 1),
 
-                # initiate PSU-2
-                ('dcs6500_48z8c_psu2', 0x53, 13),
-                ('ym2651', 0x5b, 13),
-           ])
-        ########### initialize I2C bus 1 ###########
+            # initiate PSU-2
+            ('dcs6500_48z8c_psu2', 0x59, 2),
+            ])
 
-        # initiate multiplexer (PCA9548)
-        self.new_i2c_devices(
-            [
-                ('pca9548', 0x70, 2),
-                # initiate multiplexer (PCA9548)
-                ('pca9548', 0x71, 33),
-                ('pca9548', 0x72, 34),
-                ('pca9548', 0x73, 35),
-                ('pca9548', 0x74, 36),
-                ('pca9548', 0x75, 37),
-                ('pca9548', 0x76, 38),
-                ]
-            )
+        sfp_map = [
+        101,102,103,104,
+        105,106,107,108,
+        109,110,111,112,
+        113,114,115,116,
+        117,118,119,120,
+        121,122,123,124,
+        125,126,127,128,
+        129,130,131,132,
+        133,134,135,136,
+        137,138,139,140,
+        141,142,143,144,
+        145,146,147,148,
+        149,150,151,152,
+        153,154,155,156
+        ]
 
-        sfp_map =  [
-        42,41,44,43,47,45,46,50,
-        48,49,52,51,53,56,55,54,
-        58,57,60,59,61,63,62,64,
-        66,68,65,67,69,71,72,70,
-        74,73,76,75,77,79,78,80,
-        81,82,84,85,83,87,88,86,    #port 41~48
-        25,26,27,28,29,30,31,32,    #port 49~56 QSFP
-        22,23]                      #port 57~58 SFP+ from CPU NIF.
+        for i in range(0, len(sfp_map)):
+            if i < 48: # initialize SFP+ port 1~48
+                self.new_i2c_device('optoe2', 0x50, sfp_map[i])
+            else: # initialize QSFP port 49~56
+                self.new_i2c_device('optoe1', 0x50, sfp_map[i])
 
-        # initialize SFP+ port 1~56 and 57+58.
-        for port in range(1, 49):
-            bus = sfp_map[port-1]
-            self.new_i2c_device('optoe2', 0x50, bus)
-
-        self.new_i2c_device('optoe2', 0x50, sfp_map[57-1])
-        self.new_i2c_device('optoe2', 0x50, sfp_map[58-1])
-
-        # initialize QSFP port 49~56
-        for port in range(49, 57):
-            bus = sfp_map[port-1]
-            self.new_i2c_device('optoe1', 0x50, bus)
-
-        for port in range(1, len(sfp_map)+1):
-            bus = sfp_map[port-1]
-            subprocess.call('echo port%d > /sys/bus/i2c/devices/%d-0050/port_name' % (port, bus), shell=True)
-
-        # initiate IDPROM
-        # Close 0x77 mux to make sure if the I2C address of IDPROM is 0x56 or 0x57
-        subprocess.call('i2cset -f -y 0 0x77 0 0', shell=True)
-        time.sleep(0.1)
-        self.new_i2c_device('24c02', 0x56, 0)
-        time.sleep(0.1)
-        exists = os.path.isfile('/sys/bus/i2c/devices/0-0056/eeprom')
-        if (exists is False):
-            subprocess.call('echo 0x56 > /sys/bus/i2c/devices/i2c-0/delete_device', shell=True)
-            self.new_i2c_device('24c02', 0x57, 0)
+            subprocess.call('echo port%d > /sys/bus/i2c/devices/%d-0050/port_name' % (i+1, sfp_map[i]), shell=True)
 
 
-        ir3570_check()
-        _8v89307_init()
-
+        time.sleep(5)
         return True
