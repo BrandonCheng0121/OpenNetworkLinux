@@ -4,7 +4,7 @@
  * This module supports the accton cpld that hold the channel select
  * mechanism for other i2c slave devices, such as SFP.
  * This includes the:
- *	 Accton dcs6500_48z8c CPLD1/CPLD2/CPLD3
+ *	 Accton dcs6500_48z8c CPLD1/CPLD2
  *
  * Based on:
  *	pca954x.c from Kumar Gala <galak@kernel.crashing.org>
@@ -47,8 +47,7 @@ struct cpld_client_node {
 
 enum cpld_type {
     dcs6500_48z8c_cpld1,
-    dcs6500_48z8c_cpld2,
-    dcs6500_48z8c_cpld3
+    dcs6500_48z8c_cpld2
 };
 
 struct dcs6500_48z8c_cpld_data {
@@ -60,7 +59,6 @@ struct dcs6500_48z8c_cpld_data {
 static const struct i2c_device_id dcs6500_48z8c_cpld_id[] = {
     { "dcs6500_48z8c_cpld1", dcs6500_48z8c_cpld1 },
     { "dcs6500_48z8c_cpld2", dcs6500_48z8c_cpld2 },
-    { "dcs6500_48z8c_cpld3", dcs6500_48z8c_cpld3 },
     { }
 };
 MODULE_DEVICE_TABLE(i2c, dcs6500_48z8c_cpld_id);
@@ -133,8 +131,6 @@ enum dcs6500_48z8c_cpld_sysfs_attributes {
 	TRANSCEIVER_PRESENT_ATTR_ID(54),
 	TRANSCEIVER_PRESENT_ATTR_ID(55),
 	TRANSCEIVER_PRESENT_ATTR_ID(56),
-	TRANSCEIVER_PRESENT_ATTR_ID(57),
-	TRANSCEIVER_PRESENT_ATTR_ID(58),
 	TRANSCEIVER_TXDISABLE_ATTR_ID(1),
 	TRANSCEIVER_TXDISABLE_ATTR_ID(2),
 	TRANSCEIVER_TXDISABLE_ATTR_ID(3),
@@ -183,8 +179,6 @@ enum dcs6500_48z8c_cpld_sysfs_attributes {
 	TRANSCEIVER_TXDISABLE_ATTR_ID(46),
 	TRANSCEIVER_TXDISABLE_ATTR_ID(47),
 	TRANSCEIVER_TXDISABLE_ATTR_ID(48),
-	TRANSCEIVER_TXDISABLE_ATTR_ID(57),
-	TRANSCEIVER_TXDISABLE_ATTR_ID(58),
 	TRANSCEIVER_RXLOS_ATTR_ID(1),
 	TRANSCEIVER_RXLOS_ATTR_ID(2),
 	TRANSCEIVER_RXLOS_ATTR_ID(3),
@@ -233,8 +227,6 @@ enum dcs6500_48z8c_cpld_sysfs_attributes {
 	TRANSCEIVER_RXLOS_ATTR_ID(46),
 	TRANSCEIVER_RXLOS_ATTR_ID(47),
 	TRANSCEIVER_RXLOS_ATTR_ID(48),
-	TRANSCEIVER_RXLOS_ATTR_ID(57),
-	TRANSCEIVER_RXLOS_ATTR_ID(58),
 	TRANSCEIVER_TXFAULT_ATTR_ID(1),
 	TRANSCEIVER_TXFAULT_ATTR_ID(2),
 	TRANSCEIVER_TXFAULT_ATTR_ID(3),
@@ -283,8 +275,6 @@ enum dcs6500_48z8c_cpld_sysfs_attributes {
 	TRANSCEIVER_TXFAULT_ATTR_ID(46),
 	TRANSCEIVER_TXFAULT_ATTR_ID(47),
 	TRANSCEIVER_TXFAULT_ATTR_ID(48),
-	TRANSCEIVER_TXFAULT_ATTR_ID(57),
-	TRANSCEIVER_TXFAULT_ATTR_ID(58),
 };
 
 /* sysfs attributes for hwmon 
@@ -383,8 +373,6 @@ DECLARE_TRANSCEIVER_PRESENT_SENSOR_DEVICE_ATTR(53);
 DECLARE_TRANSCEIVER_PRESENT_SENSOR_DEVICE_ATTR(54);
 DECLARE_TRANSCEIVER_PRESENT_SENSOR_DEVICE_ATTR(55);
 DECLARE_TRANSCEIVER_PRESENT_SENSOR_DEVICE_ATTR(56);
-DECLARE_TRANSCEIVER_PRESENT_SENSOR_DEVICE_ATTR(57);
-DECLARE_TRANSCEIVER_PRESENT_SENSOR_DEVICE_ATTR(58);
 
 DECLARE_SFP_TRANSCEIVER_SENSOR_DEVICE_ATTR(1);
 DECLARE_SFP_TRANSCEIVER_SENSOR_DEVICE_ATTR(2);
@@ -434,20 +422,8 @@ DECLARE_SFP_TRANSCEIVER_SENSOR_DEVICE_ATTR(45);
 DECLARE_SFP_TRANSCEIVER_SENSOR_DEVICE_ATTR(46);
 DECLARE_SFP_TRANSCEIVER_SENSOR_DEVICE_ATTR(47);
 DECLARE_SFP_TRANSCEIVER_SENSOR_DEVICE_ATTR(48);
-DECLARE_SFP_TRANSCEIVER_SENSOR_DEVICE_ATTR(57);
-DECLARE_SFP_TRANSCEIVER_SENSOR_DEVICE_ATTR(58);
 
-static struct attribute *dcs6500_48z8c_cpld3_attributes[] = {
-    &sensor_dev_attr_version.dev_attr.attr,
-    &sensor_dev_attr_access.dev_attr.attr,
-	NULL
-};
-
-static const struct attribute_group dcs6500_48z8c_cpld3_group = {
-	.attrs = dcs6500_48z8c_cpld3_attributes,
-};
-
-static struct attribute *dcs6500_48z8c_cpld2_attributes[] = {
+static struct attribute *dcs6500_48z8c_cpld1_attributes[] = {
     &sensor_dev_attr_version.dev_attr.attr,
     &sensor_dev_attr_access.dev_attr.attr,
 	/* transceiver attributes */
@@ -465,6 +441,31 @@ static struct attribute *dcs6500_48z8c_cpld2_attributes[] = {
 	DECLARE_TRANSCEIVER_PRESENT_ATTR(10),
 	DECLARE_TRANSCEIVER_PRESENT_ATTR(11),
 	DECLARE_TRANSCEIVER_PRESENT_ATTR(12),
+	DECLARE_SFP_TRANSCEIVER_ATTR(1),
+	DECLARE_SFP_TRANSCEIVER_ATTR(2),
+	DECLARE_SFP_TRANSCEIVER_ATTR(3),
+	DECLARE_SFP_TRANSCEIVER_ATTR(4),
+	DECLARE_SFP_TRANSCEIVER_ATTR(5),
+	DECLARE_SFP_TRANSCEIVER_ATTR(6),
+	DECLARE_SFP_TRANSCEIVER_ATTR(7),
+	DECLARE_SFP_TRANSCEIVER_ATTR(8),
+	DECLARE_SFP_TRANSCEIVER_ATTR(9),
+	DECLARE_SFP_TRANSCEIVER_ATTR(10),
+	DECLARE_SFP_TRANSCEIVER_ATTR(11),
+	DECLARE_SFP_TRANSCEIVER_ATTR(12),
+	NULL
+};
+
+static const struct attribute_group dcs6500_48z8c_cpld1_group = {
+	.attrs = dcs6500_48z8c_cpld1_attributes,
+};
+
+static struct attribute *dcs6500_48z8c_cpld2_attributes[] = {
+    &sensor_dev_attr_version.dev_attr.attr,
+    &sensor_dev_attr_access.dev_attr.attr,
+	/* transceiver attributes */
+	&sensor_dev_attr_module_present_all.dev_attr.attr,
+	&sensor_dev_attr_module_rx_los_all.dev_attr.attr,
 	DECLARE_TRANSCEIVER_PRESENT_ATTR(13),
 	DECLARE_TRANSCEIVER_PRESENT_ATTR(14),
 	DECLARE_TRANSCEIVER_PRESENT_ATTR(15),
@@ -483,49 +484,6 @@ static struct attribute *dcs6500_48z8c_cpld2_attributes[] = {
 	DECLARE_TRANSCEIVER_PRESENT_ATTR(28),
 	DECLARE_TRANSCEIVER_PRESENT_ATTR(29),
 	DECLARE_TRANSCEIVER_PRESENT_ATTR(30),
-	DECLARE_SFP_TRANSCEIVER_ATTR(1),
-	DECLARE_SFP_TRANSCEIVER_ATTR(2),
-	DECLARE_SFP_TRANSCEIVER_ATTR(3),
-	DECLARE_SFP_TRANSCEIVER_ATTR(4),
-	DECLARE_SFP_TRANSCEIVER_ATTR(5),
-	DECLARE_SFP_TRANSCEIVER_ATTR(6),
-	DECLARE_SFP_TRANSCEIVER_ATTR(7),
-	DECLARE_SFP_TRANSCEIVER_ATTR(8),
-	DECLARE_SFP_TRANSCEIVER_ATTR(9),
-	DECLARE_SFP_TRANSCEIVER_ATTR(10),
-	DECLARE_SFP_TRANSCEIVER_ATTR(11),
-	DECLARE_SFP_TRANSCEIVER_ATTR(12),
-	DECLARE_SFP_TRANSCEIVER_ATTR(13),
-	DECLARE_SFP_TRANSCEIVER_ATTR(14),
-	DECLARE_SFP_TRANSCEIVER_ATTR(15),
-	DECLARE_SFP_TRANSCEIVER_ATTR(16),
-	DECLARE_SFP_TRANSCEIVER_ATTR(17),
-	DECLARE_SFP_TRANSCEIVER_ATTR(18),
-	DECLARE_SFP_TRANSCEIVER_ATTR(19),
-	DECLARE_SFP_TRANSCEIVER_ATTR(20),
-	DECLARE_SFP_TRANSCEIVER_ATTR(21),
-	DECLARE_SFP_TRANSCEIVER_ATTR(22),
-	DECLARE_SFP_TRANSCEIVER_ATTR(23),
-	DECLARE_SFP_TRANSCEIVER_ATTR(24),
-    	DECLARE_SFP_TRANSCEIVER_ATTR(25),
-	DECLARE_SFP_TRANSCEIVER_ATTR(26),
-	DECLARE_SFP_TRANSCEIVER_ATTR(27),
-	DECLARE_SFP_TRANSCEIVER_ATTR(28),
-	DECLARE_SFP_TRANSCEIVER_ATTR(29),
-	DECLARE_SFP_TRANSCEIVER_ATTR(30),
-	NULL
-};
-
-static const struct attribute_group dcs6500_48z8c_cpld2_group = {
-	.attrs = dcs6500_48z8c_cpld2_attributes,
-};
-
-static struct attribute *dcs6500_48z8c_cpld1_attributes[] = {
-    &sensor_dev_attr_version.dev_attr.attr,
-    &sensor_dev_attr_access.dev_attr.attr,
-	/* transceiver attributes */
-	&sensor_dev_attr_module_present_all.dev_attr.attr,
-	&sensor_dev_attr_module_rx_los_all.dev_attr.attr,
 	DECLARE_TRANSCEIVER_PRESENT_ATTR(31),
 	DECLARE_TRANSCEIVER_PRESENT_ATTR(32),
 	DECLARE_TRANSCEIVER_PRESENT_ATTR(33),
@@ -552,8 +510,24 @@ static struct attribute *dcs6500_48z8c_cpld1_attributes[] = {
 	DECLARE_TRANSCEIVER_PRESENT_ATTR(54),
 	DECLARE_TRANSCEIVER_PRESENT_ATTR(55),
 	DECLARE_TRANSCEIVER_PRESENT_ATTR(56),
-	DECLARE_TRANSCEIVER_PRESENT_ATTR(57),
-	DECLARE_TRANSCEIVER_PRESENT_ATTR(58),
+	DECLARE_SFP_TRANSCEIVER_ATTR(13),
+	DECLARE_SFP_TRANSCEIVER_ATTR(14),
+	DECLARE_SFP_TRANSCEIVER_ATTR(15),
+	DECLARE_SFP_TRANSCEIVER_ATTR(16),
+	DECLARE_SFP_TRANSCEIVER_ATTR(17),
+	DECLARE_SFP_TRANSCEIVER_ATTR(18),
+	DECLARE_SFP_TRANSCEIVER_ATTR(19),
+	DECLARE_SFP_TRANSCEIVER_ATTR(20),
+	DECLARE_SFP_TRANSCEIVER_ATTR(21),
+	DECLARE_SFP_TRANSCEIVER_ATTR(22),
+	DECLARE_SFP_TRANSCEIVER_ATTR(23),
+	DECLARE_SFP_TRANSCEIVER_ATTR(24),
+    DECLARE_SFP_TRANSCEIVER_ATTR(25),
+	DECLARE_SFP_TRANSCEIVER_ATTR(26),
+	DECLARE_SFP_TRANSCEIVER_ATTR(27),
+	DECLARE_SFP_TRANSCEIVER_ATTR(28),
+	DECLARE_SFP_TRANSCEIVER_ATTR(29),
+	DECLARE_SFP_TRANSCEIVER_ATTR(30),
 	DECLARE_SFP_TRANSCEIVER_ATTR(31),
 	DECLARE_SFP_TRANSCEIVER_ATTR(32),
 	DECLARE_SFP_TRANSCEIVER_ATTR(33),
@@ -572,13 +546,11 @@ static struct attribute *dcs6500_48z8c_cpld1_attributes[] = {
 	DECLARE_SFP_TRANSCEIVER_ATTR(46),
 	DECLARE_SFP_TRANSCEIVER_ATTR(47),
 	DECLARE_SFP_TRANSCEIVER_ATTR(48),
-	DECLARE_SFP_TRANSCEIVER_ATTR(57),
-	DECLARE_SFP_TRANSCEIVER_ATTR(58),
 	NULL
 };
 
-static const struct attribute_group dcs6500_48z8c_cpld1_group = {
-	.attrs = dcs6500_48z8c_cpld1_attributes,
+static const struct attribute_group dcs6500_48z8c_cpld2_group = {
+	.attrs = dcs6500_48z8c_cpld2_attributes,
 };
 
 /*Split a number into bytes and insert blank between any 2 of bytes.*/
@@ -604,54 +576,39 @@ static ssize_t show_present_all(struct device *dev, struct device_attribute *da,
              char *buf)
 {
     int i, status;
-    u64 values = 0, num;
+    u8 values[6]  = {0};
+    u8 regs_cpld1[] = {0x17, 0x18};
+    u8 regs_cpld2[] = {0xf, 0x10, 0x11, 0x12, 0x13, 0x1f};
+    u8 *regs[] = {regs_cpld1, regs_cpld2};
+    u8  size[] = {ARRAY_SIZE(regs_cpld1), ARRAY_SIZE(regs_cpld2)};
     struct i2c_client *client = to_i2c_client(dev);
     struct dcs6500_48z8c_cpld_data *data = i2c_get_clientdata(client);
 
-    if (data->type == dcs6500_48z8c_cpld2) {
-        u8 byte;
-        u8 regs[] = {0x0F, 0x10, 0x11, 0x12};
+    mutex_lock(&data->update_lock);
 
-        mutex_lock(&data->update_lock);
-        for (i = 0; i < ARRAY_SIZE(regs); i++) {
-            status = dcs6500_48z8c_cpld_read_internal(client, regs[i]);
-        
-            if (status < 0) {
-                goto exit;
-            }
-            byte= (u64)status;
-            byte= ~byte;
-            values |= (byte)<<(i*8);
+    for (i = 0; i < size[data->type]; i++) {
+        status = dcs6500_48z8c_cpld_read_internal(client, regs[data->type][i]);
+        if (status < 0) {
+            goto exit;
         }
-        mutex_unlock(&data->update_lock);
 
-        /* Return values for port 1~30 in order */
-        num = 30;
-        values &= (1<<num)-1;
+        values[i] = ~(u8)status;
     }
-    else { /* dcs6500_48z8c_cpld1 */
-        u8 regs[] = {0x10, 0x11, 0x12, 0x13};
-        u8 bytes[4] = {0};
 
-        mutex_lock(&data->update_lock);
-        for (i = 0; i < ARRAY_SIZE(regs); i++) {
-            status = dcs6500_48z8c_cpld_read_internal(client, regs[i]);
-            if (status < 0) {
-                goto exit;
-            }
-            bytes[i] = (u8)status;
-            bytes[i] = ~bytes[i];
-        }
-        mutex_unlock(&data->update_lock);
+    mutex_unlock(&data->update_lock);
 
-        /* Return values of port 31 -> 58 in order */
-        values = bytes[0] | (bytes[1]<<8) | ((bytes[2]&0x3)<<16) | ((bytes[3])<<18) | 
-                (((bytes[2]&0xC) >> 2)<<26);
-        num = 28;
-        values &= (1<<num)-1;
+    /* Return values in order */
+    if (data->type == dcs6500_48z8c_cpld1) {
+        values[1] &= 0xF;
+        return sprintf(buf, "%.2x %.2x\n",
+                             values[0], values[1]);
     }
-    string_byte_sep(buf, num, values);
-    return sprintf(buf, "%s", buf);
+    else { /* dcs6500_48z8c_cpld2 */
+        values[4] &= 0xf;
+        return sprintf(buf, "%.2x %.2x %.2x %.2x %.2x %.2x\n",
+                             values[0], values[1], values[2], values[3], values[4], values[5]);
+    }
+
 exit:
     mutex_unlock(&data->update_lock);
     return status;
@@ -661,55 +618,39 @@ static ssize_t show_rxlos_all(struct device *dev, struct device_attribute *da,
              char *buf)
 {
     int i, status;
-    u64 values = 0, num;
+    u8 values[5]  = {0};
+    u8 regs_cpld1[] = {0x15, 0x16};
+    u8 regs_cpld2[] = {0xa, 0xb, 0xc, 0xd, 0xe};
+    u8 *regs[] = {regs_cpld1, regs_cpld2};
+    u8  size[] = {ARRAY_SIZE(regs_cpld1), ARRAY_SIZE(regs_cpld2)};
     struct i2c_client *client = to_i2c_client(dev);
     struct dcs6500_48z8c_cpld_data *data = i2c_get_clientdata(client);
 
-    if (data->type == dcs6500_48z8c_cpld2) {
-        u8 byte;
-        u8 regs[] = {0x0B, 0x0C, 0x0D, 0x0E};
+    mutex_lock(&data->update_lock);
 
-        mutex_lock(&data->update_lock);
-        for (i = 0; i < ARRAY_SIZE(regs); i++) {
-            status = dcs6500_48z8c_cpld_read_internal(client, regs[i]);
-        
-            if (status < 0) {
-                goto exit;
-            }
-            byte= (u64)status;
-            values |= (byte)<<(i*8);
+    for (i = 0; i < size[data->type]; i++) {
+        status = dcs6500_48z8c_cpld_read_internal(client, regs[data->type][i]);
+        if (status < 0) {
+            goto exit;
         }
-        mutex_unlock(&data->update_lock);
 
-        /* Return values for port 1~30 in order */
-        num = 30;
-        values &= (1<<num)-1;
-
+        values[i] = ~(u8)status;
     }
-    else { /* dcs6500_48z8c_cpld1 */
-        u8 regs[] = {0x17, 0x18, 0x19};
-        u8 bytes[4] = {0};
 
-        mutex_lock(&data->update_lock);
-        for (i = 0; i < ARRAY_SIZE(regs); i++) {
-            status = dcs6500_48z8c_cpld_read_internal(client, regs[i]);
-        
-            if (status < 0) {
-                goto exit;
-            }
-            bytes[i] = (u8)status;
-        }
-        mutex_unlock(&data->update_lock);
+    mutex_unlock(&data->update_lock);
 
-        /* Return values of port 31 -> 58 in order */
-        values = bytes[0] | (bytes[1]<<8) | ((bytes[2]&0x3)<<16) |
-                (((bytes[2]&0xC) >> 2)<<26);
-
-        num = 28;
-        values &= (1<<num)-1;
+    /* Return values in order */
+    if (data->type == dcs6500_48z8c_cpld1) {
+        values[1] &= 0xF;
+        return sprintf(buf, "%.2x %.2x\n",
+                             values[0], values[1]);
     }
-    string_byte_sep(buf, num, values);
-    return sprintf(buf, "%s", buf);
+    else { /* dcs6500_48z8c_cpld2 */
+        values[4] &= 0xF;
+        return sprintf(buf, "%.2x %.2x %.2x %.2x %.2x\n",
+                             values[0], values[1], values[2], values[3], values[4]);
+    }
+
 exit:
     mutex_unlock(&data->update_lock);
     return status;
@@ -725,63 +666,47 @@ static ssize_t show_status(struct device *dev, struct device_attribute *da,
 	u8 reg = 0, mask = 0, revert = 0;
 
 	switch (attr->index) {
-	case MODULE_PRESENT_1 ... MODULE_PRESENT_30:
-		reg  = 0x0f + (attr->index-MODULE_PRESENT_1)/8;
+	case MODULE_PRESENT_1 ... MODULE_PRESENT_12:
+		reg  = 0x17 + (attr->index-MODULE_PRESENT_1)/8;
 		mask = 0x1 << ((attr->index - MODULE_PRESENT_1)%8);
 		break;
-	case MODULE_PRESENT_31 ... MODULE_PRESENT_48:
-		reg  = 0x10 + (attr->index-MODULE_PRESENT_31)/8;
-		mask = 0x1 << ((attr->index - MODULE_PRESENT_31)%8);
-		break;
-	case MODULE_PRESENT_57 ... MODULE_PRESENT_58:
-		reg  = 0x12;
-		mask = 0x1 << ((attr->index - MODULE_PRESENT_57)+2);
+	case MODULE_PRESENT_13 ... MODULE_PRESENT_48:
+		reg  = 0xf + (attr->index-MODULE_PRESENT_13)/8;
+		mask = 0x1 << ((attr->index - MODULE_PRESENT_13)%8);
 		break;
 	case MODULE_PRESENT_49 ... MODULE_PRESENT_56:   /*QSFP*/
-		reg  = 0x13 ;
+		reg  = 0x1f ;
 		mask = 0x1 << ((attr->index - MODULE_PRESENT_49)%8);
 		break;
-	case MODULE_TXFAULT_1 ... MODULE_TXFAULT_30:
-		reg  = 0x03 + (attr->index - MODULE_TXFAULT_1)/8;
+	case MODULE_TXFAULT_1 ... MODULE_TXFAULT_12:
+		reg  = 0x19 + (attr->index - MODULE_TXFAULT_1)/8;
 		mask = 0x1 << ((attr->index - MODULE_TXFAULT_1)%8);
 		break;
-	case MODULE_TXFAULT_31 ... MODULE_TXFAULT_48:
-		reg  = 0x1a + (attr->index-MODULE_TXFAULT_31)/8;
-		mask = 0x1 << ((attr->index - MODULE_TXFAULT_31)%8);
+	case MODULE_TXFAULT_13 ... MODULE_TXFAULT_48:
+		reg  = 0x14 + (attr->index-MODULE_TXFAULT_13)/8;
+		mask = 0x1 << ((attr->index - MODULE_TXFAULT_13)%8);
 		break;
-	case MODULE_TXFAULT_57 ... MODULE_TXFAULT_58:
-		reg  = 0x1c;
-		mask = 0x1 << (( attr->index - MODULE_TXFAULT_57)+2);
-		break;
-	case MODULE_TXDISABLE_1 ... MODULE_TXDISABLE_30:
-		reg  = 0x07 + (attr->index - MODULE_TXDISABLE_1)/8;
+	case MODULE_TXDISABLE_1 ... MODULE_TXDISABLE_12:
+		reg  = 0x1b + (attr->index - MODULE_TXDISABLE_1)/8;
 		mask = 0x1 << ((attr->index - MODULE_TXDISABLE_1)%8);
 		break;
-	case MODULE_TXDISABLE_31 ... MODULE_TXDISABLE_48:
-		reg  = 0x14 + (attr->index-MODULE_TXDISABLE_31)/8;
-		mask = 0x1 << ((attr->index - MODULE_TXDISABLE_31)%8);
+	case MODULE_TXDISABLE_13 ... MODULE_TXDISABLE_48:
+		reg  = 0x19 + (attr->index-MODULE_TXDISABLE_13)/8;
+		mask = 0x1 << ((attr->index - MODULE_TXDISABLE_13)%8);
 		break;
-	case MODULE_TXDISABLE_57 ... MODULE_TXDISABLE_58:
-		reg  = 0x16;
-		mask = 0x1 << ((attr->index - MODULE_TXDISABLE_57)+2);
-		break;
-	case MODULE_RXLOS_1 ... MODULE_RXLOS_30:
-		reg  = 0x0b + (attr->index - MODULE_RXLOS_1)/8;
+	case MODULE_RXLOS_1 ... MODULE_RXLOS_12:
+		reg  = 0x15 + (attr->index - MODULE_RXLOS_1)/8;
 		mask = 0x1 << ((attr->index - MODULE_RXLOS_1)%8);
 		break;
-	case MODULE_RXLOS_31 ... MODULE_RXLOS_48:
-		reg  = 0x17 + (attr->index-MODULE_RXLOS_31)/8;
-		mask = 0x1 << ((attr->index - MODULE_RXLOS_31)%8);
-		break;
-	case MODULE_RXLOS_57 ... MODULE_RXLOS_58:
-		reg  = 0x19;
-		mask = 0x1 << (( attr->index - MODULE_RXLOS_57)+2);
+	case MODULE_RXLOS_13 ... MODULE_RXLOS_48:
+		reg  = 0xa + (attr->index-MODULE_RXLOS_13)/8;
+		mask = 0x1 << ((attr->index - MODULE_RXLOS_13)%8);
 		break;
 	default:
 		return 0;
 	}
 
-    if (attr->index >= MODULE_PRESENT_1 && attr->index <= MODULE_PRESENT_58) {
+    if (attr->index >= MODULE_PRESENT_1 && attr->index <= MODULE_PRESENT_56) {
         revert = 1;
     }
 
@@ -815,17 +740,13 @@ static ssize_t set_tx_disable(struct device *dev, struct device_attribute *da,
 	}
 
 	switch (attr->index) {
-	case MODULE_TXDISABLE_1 ... MODULE_TXDISABLE_30:
-		reg  = 0x07 + (attr->index - MODULE_TXDISABLE_1)/8;
+	case MODULE_TXDISABLE_1 ... MODULE_TXDISABLE_12:
+		reg  = 0x1b + (attr->index - MODULE_TXDISABLE_1)/8;
 		mask = 0x1 << ((attr->index - MODULE_TXDISABLE_1)%8);
 		break;
-	case MODULE_TXDISABLE_31 ... MODULE_TXDISABLE_48:
-		reg  = 0x14 + (attr->index - MODULE_TXDISABLE_31)/8;
-		mask = 0x1 << ((attr->index - MODULE_TXDISABLE_31)%8);
-		break;
-	case MODULE_TXDISABLE_57 ... MODULE_TXDISABLE_58:
-		reg  = 0x16;
-		mask = 0x1 << ((attr->index - MODULE_TXDISABLE_57)+2);
+	case MODULE_TXDISABLE_13 ... MODULE_TXDISABLE_48:
+		reg  = 0x19 + (attr->index - MODULE_TXDISABLE_13)/8;
+		mask = 0x1 << ((attr->index - MODULE_TXDISABLE_13)%8);
 		break;
 	default:
 		return 0;
@@ -932,16 +853,22 @@ static void dcs6500_48z8c_cpld_remove_client(struct i2c_client *client)
 
 static ssize_t show_version(struct device *dev, struct device_attribute *attr, char *buf)
 {
-    int val = 0;
+    int major = 0, minor = 0;
     struct i2c_client *client = to_i2c_client(dev);
 	
-	val = i2c_smbus_read_byte_data(client, 0x1);
+	major = i2c_smbus_read_byte_data(client, 0x0);
 
-    if (val < 0) {
-        dev_dbg(&client->dev, "cpld(0x%x) reg(0x1) err %d\n", client->addr, val);
+    if (major < 0) {
+        dev_dbg(&client->dev, "cpld(0x%x) reg(0x0) err %d\n", client->addr, major);
     }
-	
-    return sprintf(buf, "%d", val);
+
+	minor = i2c_smbus_read_byte_data(client, 0x1);
+
+    if (minor < 0) {
+        dev_dbg(&client->dev, "cpld(0x%x) reg(0x1) err %d\n", client->addr, minor);
+    }
+
+    return sprintf(buf, "%x.%x", major, minor);
 }
 
 /*
@@ -975,9 +902,6 @@ static int dcs6500_48z8c_cpld_probe(struct i2c_client *client,
         break;
     case dcs6500_48z8c_cpld2:
         group = &dcs6500_48z8c_cpld2_group;
-        break;
-	case dcs6500_48z8c_cpld3:
-        group = &dcs6500_48z8c_cpld3_group;
         break;
     default:
         break;
@@ -1013,9 +937,6 @@ static int dcs6500_48z8c_cpld_remove(struct i2c_client *client)
         break;
     case dcs6500_48z8c_cpld2:
         group = &dcs6500_48z8c_cpld2_group;
-        break;
-	case dcs6500_48z8c_cpld3:
-        group = &dcs6500_48z8c_cpld3_group;
         break;
     default:
         break;
