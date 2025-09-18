@@ -1,5 +1,5 @@
 /*
- * Copyright (C)  Brandon Chuang <brandon_chuang@accton.com.tw>
+ * Copyright (C)  Brandon Cheng <brandon_cheng@edge-core.com>
  *
  * This module supports the accton cpld that hold the channel select
  * mechanism for other i2c slave devices, such as SFP.
@@ -36,6 +36,8 @@
 
 #define I2C_RW_RETRY_COUNT				10
 #define I2C_RW_RETRY_INTERVAL			60 /* ms */
+#define FAN_MAX_DUTY_CYCLE              100
+#define FAN_TECK_SPEED_CNT              150 // 1/167.67*1000/2*60 = 178.92
 
 static LIST_HEAD(cpld_client_list);
 static struct mutex     list_lock;
@@ -50,10 +52,38 @@ enum cpld_type {
     dcs6500_48z8c_cpld2
 };
 
+enum fan_box_id {
+    FAN_BOX1_ID,
+    FAN_BOX2_ID,
+};
+
+/* 2 fan-tray modules with 4 pcs of 40mmx40mmx56mm 12V fans, hot-swappable */
+static const u8 fan_reg[] = {
+    0x52,      /* fan box's status and direction */
+    0x36,      /* fan PWM(for fan1), duty cycle */
+    0x37,      /* fan PWM(for fan2), duty cycle */
+    0x38,      /* fan PWM(for fan3), duty cycle */
+    0x39,      /* fan PWM(for fan4), duty cycle */
+    0x3A,      /* front fan1 speed(rpm) */
+    0x3B,      /* front fan2 speed(rpm) */
+    0x3C,      /* front fan3 speed(rpm) */
+    0x3D,      /* front fan4 speed(rpm) */
+    0x3E,      /* rear fan1 speed(rpm) */
+    0x3F,      /* rear fan2 speed(rpm) */
+    0x40,      /* rear fan3 speed(rpm) */
+    0x4E,      /* rear fan4 speed(rpm) */
+};
+
+#define FAN_WATCHDOG_EN_REG 0x2E
+
 struct dcs6500_48z8c_cpld_data {
     enum cpld_type   type;
     struct device   *hwmon_dev;
     struct mutex     update_lock;
+	char             valid;           /* != 0 if registers are valid */
+    unsigned long    last_updated;    /* In jiffies */
+	u8               reg_fan_val[ARRAY_SIZE(fan_reg)]; /* Register value */
+
 };
 
 static const struct i2c_device_id dcs6500_48z8c_cpld_id[] = {
@@ -68,6 +98,11 @@ MODULE_DEVICE_TABLE(i2c, dcs6500_48z8c_cpld_id);
 #define TRANSCEIVER_RXLOS_ATTR_ID(index)   		MODULE_RXLOS_##index
 #define TRANSCEIVER_TXFAULT_ATTR_ID(index)   	MODULE_TXFAULT_##index
 #define TRANSCEIVER_RESET_ATTR_ID(index)   	MODULE_RESET_##index
+
+#define FAN_DIRECTION_ID(index) FAN_DIRECTION_##index      // by fan box(module)
+#define FAN_PRESENT_ATTR_ID(index) FAN_PRESENT_##index     // by fan box(module)
+#define FAN_FRONT_SPEED_RPM_ATTR_ID(index) FAN_FRONT_SPEED_RPM_##index // by each fan
+#define FAN_REAR_SPEED_RPM_ATTR_ID(index)  FAN_REAR_SPEED_RPM_##index   // by each fan
 
 enum dcs6500_48z8c_cpld_sysfs_attributes {
 	CPLD_VERSION,
@@ -275,6 +310,20 @@ enum dcs6500_48z8c_cpld_sysfs_attributes {
 	TRANSCEIVER_TXFAULT_ATTR_ID(46),
 	TRANSCEIVER_TXFAULT_ATTR_ID(47),
 	TRANSCEIVER_TXFAULT_ATTR_ID(48),
+	FAN_PRESENT_ATTR_ID(1),
+	FAN_PRESENT_ATTR_ID(2),
+	FAN_DIRECTION_ID(1),
+	FAN_DIRECTION_ID(2),
+	FAN_FRONT_SPEED_RPM_ATTR_ID(1),
+	FAN_FRONT_SPEED_RPM_ATTR_ID(2),
+	FAN_FRONT_SPEED_RPM_ATTR_ID(3),
+	FAN_FRONT_SPEED_RPM_ATTR_ID(4),
+	FAN_REAR_SPEED_RPM_ATTR_ID(1),
+	FAN_REAR_SPEED_RPM_ATTR_ID(2),
+	FAN_REAR_SPEED_RPM_ATTR_ID(3),
+	FAN_REAR_SPEED_RPM_ATTR_ID(4),
+	FAN_DUTY_CYCLE_PERCENTAGE,
+
 };
 
 /* sysfs attributes for hwmon 
@@ -294,10 +343,18 @@ static ssize_t show_version(struct device *dev, struct device_attribute *da,
 static int dcs6500_48z8c_cpld_read_internal(struct i2c_client *client, u8 reg);
 static int dcs6500_48z8c_cpld_write_internal(struct i2c_client *client, u8 reg, u8 value);
 
+
+/*fan sysfs*/
+static struct dcs6500_48z8c_cpld_data *dcs6500_48z8c_fan_update_device(struct device *dev);
+static ssize_t fan_show_value(struct device *dev, struct device_attribute *da, char *buf);
+static ssize_t set_duty_cycle(struct device *dev, struct device_attribute *da,
+                              const char *buf, size_t count);
+
 /* transceiver attributes */
 #define DECLARE_TRANSCEIVER_PRESENT_SENSOR_DEVICE_ATTR(index) \
 	static SENSOR_DEVICE_ATTR(module_present_##index, S_IRUGO, show_status, NULL, MODULE_PRESENT_##index)
-#define DECLARE_TRANSCEIVER_PRESENT_ATTR(index)  &sensor_dev_attr_module_present_##index.dev_attr.attr
+#define DECLARE_TRANSCEIVER_PRESENT_ATTR(index)  \
+    &sensor_dev_attr_module_present_##index.dev_attr.attr
 
 #define DECLARE_TRANSCEIVER_RESET_SENSOR_DEVICE_ATTR(index) \
 	static SENSOR_DEVICE_ATTR(module_reset_##index, S_IRUGO | S_IWUSR, show_status, set_reset, MODULE_RESET_##index)
@@ -311,6 +368,28 @@ static int dcs6500_48z8c_cpld_write_internal(struct i2c_client *client, u8 reg, 
 	&sensor_dev_attr_module_tx_disable_##index.dev_attr.attr, \
 	&sensor_dev_attr_module_rx_los_##index.dev_attr.attr, \
 	&sensor_dev_attr_module_tx_fault_##index.dev_attr.attr
+
+#define DECLARE_FAN_SENSOR_DEV_ATTR(index) \
+    static SENSOR_DEVICE_ATTR(fan_present_##index, S_IRUGO, fan_show_value, NULL, FAN_PRESENT_##index); \
+	static SENSOR_DEVICE_ATTR(fan_direction_##index, S_IRUGO, fan_show_value, NULL, FAN_DIRECTION_##index);
+#define DECLARE_FAN_BOX_ATTR(index)  \
+    &sensor_dev_attr_fan_present_##index.dev_attr.attr, \
+	&sensor_dev_attr_fan_direction_##index.dev_attr.attr
+
+#define DECLARE_FAN_SENSOR_ATTR1(index) \
+    static SENSOR_DEVICE_ATTR(fan_front_speed_rpm_##index, S_IRUGO, fan_show_value, NULL, FAN_FRONT_SPEED_RPM_##index);
+#define DECLARE_FAN_FRONT_ATTR(index)  \
+    &sensor_dev_attr_fan_front_speed_rpm_##index.dev_attr.attr
+
+#define DECLARE_FAN_SENSOR_ATTR2(index) \
+    static SENSOR_DEVICE_ATTR(fan_rear_speed_rpm_##index, S_IRUGO, fan_show_value, NULL, FAN_REAR_SPEED_RPM_##index);
+#define DECLARE_FAN_REAR_ATTR(index)  \
+    &sensor_dev_attr_fan_rear_speed_rpm_##index.dev_attr.attr
+
+#define DECLARE_FAN_DUTY_CYCLE_SENSOR_DEV_ATTR(index) \
+    static SENSOR_DEVICE_ATTR(fan_duty_cycle_percentage, S_IWUSR | S_IRUGO, fan_show_value, set_duty_cycle, FAN_DUTY_CYCLE_PERCENTAGE);
+#define DECLARE_FAN_DUTY_CYCLE_ATTR(index) \
+    &sensor_dev_attr_fan_duty_cycle_percentage.dev_attr.attr
 
 static SENSOR_DEVICE_ATTR(version, S_IRUGO, show_version, NULL, CPLD_VERSION);
 static SENSOR_DEVICE_ATTR(access, S_IWUSR, NULL, access, ACCESS);
@@ -423,6 +502,19 @@ DECLARE_SFP_TRANSCEIVER_SENSOR_DEVICE_ATTR(46);
 DECLARE_SFP_TRANSCEIVER_SENSOR_DEVICE_ATTR(47);
 DECLARE_SFP_TRANSCEIVER_SENSOR_DEVICE_ATTR(48);
 
+/* fan attributes */
+DECLARE_FAN_SENSOR_DEV_ATTR(1);
+DECLARE_FAN_SENSOR_DEV_ATTR(2);
+DECLARE_FAN_SENSOR_ATTR1(1);
+DECLARE_FAN_SENSOR_ATTR1(2);
+DECLARE_FAN_SENSOR_ATTR1(3);
+DECLARE_FAN_SENSOR_ATTR1(4);
+DECLARE_FAN_SENSOR_ATTR2(1);
+DECLARE_FAN_SENSOR_ATTR2(2);
+DECLARE_FAN_SENSOR_ATTR2(3);
+DECLARE_FAN_SENSOR_ATTR2(4);
+DECLARE_FAN_DUTY_CYCLE_SENSOR_DEV_ATTR(1);
+
 static struct attribute *dcs6500_48z8c_cpld1_attributes[] = {
     &sensor_dev_attr_version.dev_attr.attr,
     &sensor_dev_attr_access.dev_attr.attr,
@@ -453,6 +545,17 @@ static struct attribute *dcs6500_48z8c_cpld1_attributes[] = {
 	DECLARE_SFP_TRANSCEIVER_ATTR(10),
 	DECLARE_SFP_TRANSCEIVER_ATTR(11),
 	DECLARE_SFP_TRANSCEIVER_ATTR(12),
+	DECLARE_FAN_BOX_ATTR(1),
+	DECLARE_FAN_BOX_ATTR(2),
+	DECLARE_FAN_FRONT_ATTR(1),
+	DECLARE_FAN_FRONT_ATTR(2),
+	DECLARE_FAN_FRONT_ATTR(3),
+	DECLARE_FAN_FRONT_ATTR(4),
+	DECLARE_FAN_REAR_ATTR(1),
+	DECLARE_FAN_REAR_ATTR(2),
+	DECLARE_FAN_REAR_ATTR(3),
+	DECLARE_FAN_REAR_ATTR(4),
+	DECLARE_FAN_DUTY_CYCLE_ATTR(1),
 	NULL
 };
 
@@ -871,6 +974,148 @@ static ssize_t show_version(struct device *dev, struct device_attribute *attr, c
     return sprintf(buf, "%x.%x", major, minor);
 }
 
+static struct dcs6500_48z8c_cpld_data *dcs6500_48z8c_fan_update_device(struct device *dev)
+{
+    struct i2c_client *client = to_i2c_client(dev);
+    struct dcs6500_48z8c_cpld_data *data = i2c_get_clientdata(client);
+
+    mutex_lock(&data->update_lock);
+
+    if (time_after(jiffies, data->last_updated + HZ + HZ / 2) ||
+            !data->valid) {
+        int i;
+
+        dev_dbg(&client->dev, "Starting dcs6500_48z8c_fan update\n");
+        data->valid = 0;
+
+        /* Update fan data
+         */
+        for (i = 0; i < ARRAY_SIZE(data->reg_fan_val); i++) {
+            int status = dcs6500_48z8c_cpld_read_internal(client, fan_reg[i]);
+            if (status < 0) {
+                data->valid = 0;
+                mutex_unlock(&data->update_lock);
+                dev_dbg(&client->dev, "reg 0x%x, err %d\n", fan_reg[i], status);
+                return data;
+            }
+            else {
+                data->reg_fan_val[i] = status & 0xff;
+            }
+        }
+
+        data->last_updated = jiffies;
+        data->valid = 1;
+    }
+
+    mutex_unlock(&data->update_lock);
+
+    return data;
+}
+
+/* fan utility functions  */
+static u32 reg_val_to_duty_cycle(u8 reg_val)
+{
+	int val;
+    val = reg_val;
+
+	return (val + 2) * 100 / 256;
+}
+
+static u8 duty_cycle_to_reg_val(u8 duty_cycle)
+{
+    int val;
+    val = duty_cycle;
+    if(val < 30)
+        val = 30;
+    return (val * 255 / 100);
+}
+
+static u32 reg_val_to_speed_rpm(u8 reg_val)
+{
+    return (u32)reg_val * FAN_TECK_SPEED_CNT;
+}
+
+static ssize_t set_duty_cycle(struct device *dev, struct device_attribute *da,
+							const char *buf, size_t count)
+{
+    int error, value;
+	int status = 0;
+    struct i2c_client *client = to_i2c_client(dev);
+    error = kstrtoint(buf, 10, &value);
+    if (error)
+        return error;
+    if (value < 0 || value > FAN_MAX_DUTY_CYCLE)
+        return -EINVAL;
+
+	/* Disable FAN watch dog first.*/
+    /* dcs6500_48z8c_cpld_write_internal(client, FAN_WATCHDOG_EN_REG, 0);
+	msleep(2000);
+	*/
+    dcs6500_48z8c_cpld_write_internal(client, fan_reg[1], duty_cycle_to_reg_val(value));
+    dcs6500_48z8c_cpld_write_internal(client, fan_reg[2], duty_cycle_to_reg_val(value));
+    dcs6500_48z8c_cpld_write_internal(client, fan_reg[3], duty_cycle_to_reg_val(value));
+    dcs6500_48z8c_cpld_write_internal(client, fan_reg[4], duty_cycle_to_reg_val(value));
+
+	return count;
+}
+
+static u8 reg_val_to_direction(u8 reg_val, enum fan_box_id id)
+{
+    u8 mask = (1 << (1-id));
+    reg_val &= mask;
+
+    return reg_val ? 1 : 0;
+}
+
+static u8 reg_val_to_is_present(u8 reg_val, enum fan_box_id id)
+{
+    u8 mask = (1 << (7-id));
+    reg_val &= mask;
+
+    return reg_val ? 0 : 1;
+}
+
+static ssize_t fan_show_value(struct device *dev, struct device_attribute *da, char *buf)
+{
+    u32 duty_cycle;
+    struct sensor_device_attribute *attr = to_sensor_dev_attr(da);
+    struct dcs6500_48z8c_cpld_data *data = dcs6500_48z8c_fan_update_device(dev);
+    ssize_t ret = 0;
+
+    if (data->valid) {
+        switch (attr->index)
+        {
+            case FAN_PRESENT_1:
+            case FAN_PRESENT_2:
+                ret = sprintf(buf, "%d\n", reg_val_to_is_present(data->reg_fan_val[0], attr->index - FAN_PRESENT_1));
+                break;
+            case FAN_DIRECTION_1:
+            case FAN_DIRECTION_2:
+                ret = sprintf(buf, "%d\n", reg_val_to_direction(data->reg_fan_val[0], attr->index - FAN_DIRECTION_1));
+                break;
+            case FAN_DUTY_CYCLE_PERCENTAGE:
+                duty_cycle = reg_val_to_duty_cycle(data->reg_fan_val[1]);
+                ret = sprintf(buf, "%u\n", duty_cycle);
+                break;
+            case FAN_FRONT_SPEED_RPM_1:
+            case FAN_FRONT_SPEED_RPM_2:
+            case FAN_FRONT_SPEED_RPM_3:
+            case FAN_FRONT_SPEED_RPM_4:
+                ret = sprintf(buf, "%u\n", reg_val_to_speed_rpm(data->reg_fan_val[attr->index - FAN_FRONT_SPEED_RPM_1 + 5]));
+                break;
+            case FAN_REAR_SPEED_RPM_1:
+            case FAN_REAR_SPEED_RPM_2:
+            case FAN_REAR_SPEED_RPM_3:
+            case FAN_REAR_SPEED_RPM_4:
+                ret = sprintf(buf, "%u\n", reg_val_to_speed_rpm(data->reg_fan_val[attr->index - FAN_REAR_SPEED_RPM_1 + 9]));
+                break;
+            default:
+                break;
+        }
+    }
+    return ret;
+}
+
 /*
  * I2C init/probing/exit functions
  */
@@ -1056,8 +1301,8 @@ static void __exit dcs6500_48z8c_cpld_exit(void)
     i2c_del_driver(&dcs6500_48z8c_cpld_driver);
 }
 
-MODULE_AUTHOR("Brandon Chuang <brandon_chuang@accton.com.tw>");
-MODULE_DESCRIPTION("Accton I2C CPLD driver");
+MODULE_AUTHOR("Brandon Cheng <brandon_cheng@edge-core.com>");
+MODULE_DESCRIPTION("dcs6500_48z8c I2C CPLD driver");
 MODULE_LICENSE("GPL");
 
 module_init(dcs6500_48z8c_cpld_init);
