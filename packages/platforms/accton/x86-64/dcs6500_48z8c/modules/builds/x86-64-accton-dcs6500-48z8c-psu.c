@@ -1,11 +1,8 @@
 /*
- * An hwmon driver for accton dcs6500_48z8c Power Module
+ * Hardware monitoring driver for dcs6500_48z8c_psu
  *
- * Copyright (C) 2014 Accton Technology Corporation.
- * Brandon Chuang <brandon_chuang@accton.com.tw>
- *
- * Based on ad7414.c
- * Copyright 2006 Stefan Roese <sr at denx.de>, DENX Software Engineering
+ * Copyright (c) 2015 Accton Technology
+ * Copyright (c) 2015 Zhenling Yin
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -14,12 +11,8 @@
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
  */
 
 #include <linux/module.h>
@@ -32,370 +25,548 @@
 #include <linux/sysfs.h>
 #include <linux/slab.h>
 #include <linux/delay.h>
-#include <linux/dmi.h>
+#include <linux/string.h>
+#include <linux/version.h>
 
-#define MAX_MODEL_NAME          16
-#define MAX_SERIAL_NUMBER       19
+#define PSU_MAX_FAN_SPEED   23000
+#define PMBUS_MFR_MAX_LEN   (31)
+#define PMBUS_MFR_PSU_VIN_TYPE      0x85  //just for C1A-B0650
+#define PMBUS_READ_LED_STATUS       0xDA  //just for C1A-B0650
+#define I2C_RW_RETRY_COUNT      10
+#define I2C_RW_RETRY_INTERVAL   60 /* ms */
 
-static ssize_t show_status(struct device *dev, struct device_attribute *da, char *buf);
-static ssize_t show_string(struct device *dev, struct device_attribute *da, char *buf);
-static int dcs6500_48z8c_psu_read_block(struct i2c_client *client, u8 command, u8 *data,int data_len);
-extern int dcs6500_48z8c_cpld_read(unsigned short cpld_addr, u8 reg);
+#define IS_PRESENT(id, value)		(!(value & BIT(7 - id)))
 
-/* Addresses scanned
+/*
+ * Registers
  */
-static const unsigned short normal_i2c[] = { 0x50, 0x53, I2C_CLIENT_END };
-
-enum psu_type {
-    PSU_TYPE_AC_110V,
-    PSU_TYPE_DC_48V,
-    PSU_TYPE_DC_12V,
-    PSU_TYPE_AC_ACBEL_FSF019,
-    PSU_TYPE_AC_ACBEL_FSF045
+enum pmbus_regs {
+	PMBUS_VOUT_MODE			= 0x20,
+	PMBUS_STATUS_WORD		= 0x79,
+	PMBUS_STATUS_TEMPERATURE	= 0x7D,
+	PMBUS_STATUS_FAN_12		= 0x81,
+	PMBUS_READ_VIN			= 0x88,
+	PMBUS_READ_IIN			= 0x89,
+	PMBUS_READ_VOUT			= 0x8B,
+	PMBUS_READ_IOUT			= 0x8C,
+	PMBUS_READ_TEMPERATURE_1	= 0x8D,
+	PMBUS_READ_TEMPERATURE_2	= 0x8E,
+	PMBUS_READ_TEMPERATURE_3	= 0x8F,
+	PMBUS_READ_FAN_SPEED_1		= 0x90,
+	PMBUS_READ_POUT			= 0x96,
+	PMBUS_READ_PIN			= 0x97,
+	PMBUS_MFR_ID			= 0x99,
+	PMBUS_MFR_MODEL			= 0x9A,
+	PMBUS_MFR_REVISION		= 0x9B,
+	PMBUS_MFR_SERIAL		= 0x9E,
 };
+
+/*
+ * STATUS_BYTE, STATUS_WORD (lower)
+ */
+#define PB_STATUS_NONE_ABOVE	BIT(0)
+#define PB_STATUS_CML			BIT(1)
+#define PB_STATUS_TEMPERATURE	BIT(2)
+#define PB_STATUS_VIN_UV		BIT(3)
+#define PB_STATUS_IOUT_OC		BIT(4)
+#define PB_STATUS_VOUT_OV		BIT(5)
+#define PB_STATUS_OFF			BIT(6)
+#define PB_STATUS_BUSY			BIT(7)
+
+/*
+ * STATUS_WORD (upper)
+ */
+#define PB_STATUS_UNKNOWN		BIT(8)
+#define PB_STATUS_OTHER			BIT(9)
+#define PB_STATUS_FANS			BIT(10)
+#define PB_STATUS_POWER_GOOD_N	BIT(11)
+#define PB_STATUS_WORD_MFR		BIT(12)
+#define PB_STATUS_INPUT			BIT(13)
+#define PB_STATUS_IOUT_POUT		BIT(14)
+#define PB_STATUS_VOUT			BIT(15)
 
 /* Each client has this additional data
  */
-struct dcs6500_48z8c_psu_data {
-    struct device      *hwmon_dev;
+struct dcs6500_48z8c_data {
+    struct device     *hwmon_dev;
     struct mutex        update_lock;
-    char                valid;           /* !=0 if registers are valid */
-    unsigned long       last_updated;    /* In jiffies */
-    u8  index;           /* PSU index */
-    u8  status;          /* Status(present/power_good) register read from CPLD */
-    char model_name[MAX_MODEL_NAME+1]; /* Model name, read from eeprom */
-    char serial_number[MAX_SERIAL_NUMBER];
-    enum psu_type       type;
+    char                valid;         /* !=0 if registers are valid */
+    unsigned long      last_updated;    /* In jiffies */
+    u8   chip;          /* chip id */
+    u8   status;          /* Status(present/power_good) register read from CPLD */
+    u16  status_word;   /* Register value */
+    u8   fan_fault;   /* Register value */
+    u8   over_temp;   /* Register value */
+    u16  v_in;        /* Register value */
+    u16  i_in;        /* Register value */
+    u16  p_in;        /* Register value */
+    u16  v_out;        /* Register value */
+    u16  i_out;       /* Register value */
+    u16  p_out;       /* Register value */
+    u8   vout_mode;     /* Register value */
+    u16  temp[3];         /* Register value */
+    u16  fan_speed;   /* Register value */
+    u16  fan_duty_cycle;  /* Register value */
+    u8   mfr_id[PMBUS_MFR_MAX_LEN];     /* Register value */
+    u8   mfr_model[PMBUS_MFR_MAX_LEN]; /* Register value */
+    u8   mfr_revsion[PMBUS_MFR_MAX_LEN]; /* Register value */
+    u8   mfr_serial[PMBUS_MFR_MAX_LEN]; /* Register value */
 };
 
-static struct dcs6500_48z8c_psu_data *dcs6500_48z8c_psu_update_device(struct device *dev);
+static ssize_t show_present(struct device *dev, struct device_attribute *da, char *buf);
+static ssize_t show_word(struct device *dev, struct device_attribute *da, char *buf);
+static ssize_t show_linear(struct device *dev, struct device_attribute *da, char *buf);
+static ssize_t show_vout(struct device *dev, struct device_attribute *da, char *buf);
+static ssize_t show_fan_fault(struct device *dev, struct device_attribute *da, char *buf);
+static ssize_t show_over_temp(struct device *dev, struct device_attribute *da, char *buf);
+static ssize_t show_ascii(struct device *dev, struct device_attribute *da, char *buf);
+static ssize_t show_pout_max(struct device *dev, struct device_attribute *da, char *buf);
+static struct dcs6500_48z8c_data *dcs6500_48z8c_update_device(struct device *dev);
+extern int dcs6500_48z8c_cpld_read(unsigned short cpld_addr, u8 reg);
 
-enum dcs6500_48z8c_psu_sysfs_attributes {
-    PSU_PRESENT,
-    PSU_MODEL_NAME,
-    PSU_SERIAL_NUMBER, /* For ACBEL PSU only */
-    PSU_POWER_GOOD
+enum dcs6500_48z8c_sysfs_attributes {
+    PSU_PRESENT = 0,
+    PSU_POWER_GOOD,
+    PSU_POWER_ON,
+    PSU_TEMP_FAULT,
+    PSU_FAN1_FAULT,
+    PSU_OVER_TEMP,
+    PSU_V_IN,
+    PSU_I_IN,
+    PSU_P_IN,
+    PSU_V_OUT,
+    PSU_I_OUT,
+    PSU_P_OUT,
+    PSU_TEMP1_INPUT,
+    PSU_TEMP2_INPUT,
+    PSU_TEMP3_INPUT,
+    PSU_FAN1_SPEED,
+    PSU_FAN1_DUTY_CYCLE,
+    PSU_MFR_ID,
+    PSU_MFR_MODEL,
+    PSU_MFR_REVISION,
+    PSU_MFR_SERIAL,
+    PSU_MFR_POUT_MAX
 };
 
 /* sysfs attributes for hwmon
  */
-static SENSOR_DEVICE_ATTR(psu_present,    S_IRUGO, show_status,    NULL, PSU_PRESENT);
-static SENSOR_DEVICE_ATTR(psu_model_name, S_IRUGO, show_string, NULL, PSU_MODEL_NAME);
-static SENSOR_DEVICE_ATTR(psu_serial_number, S_IRUGO, show_string, NULL, PSU_SERIAL_NUMBER);
-static SENSOR_DEVICE_ATTR(psu_power_good, S_IRUGO, show_status,    NULL, PSU_POWER_GOOD);
+static SENSOR_DEVICE_ATTR(psu_present,      S_IRUGO, show_present,    NULL, PSU_PRESENT);
+static SENSOR_DEVICE_ATTR(psu_power_on,     S_IRUGO, show_word,   NULL, PSU_POWER_ON);
+static SENSOR_DEVICE_ATTR(psu_temp_fault,   S_IRUGO, show_word,   NULL, PSU_TEMP_FAULT);
+static SENSOR_DEVICE_ATTR(psu_power_good,   S_IRUGO, show_word,   NULL, PSU_POWER_GOOD);
+static SENSOR_DEVICE_ATTR(psu_fan1_fault,   S_IRUGO, show_fan_fault, NULL, PSU_FAN1_FAULT);
+static SENSOR_DEVICE_ATTR(psu_over_temp,    S_IRUGO, show_over_temp, NULL, PSU_OVER_TEMP);
+static SENSOR_DEVICE_ATTR(psu_v_in,     S_IRUGO, show_linear,   NULL, PSU_V_IN);
+static SENSOR_DEVICE_ATTR(psu_i_in,     S_IRUGO, show_linear,   NULL, PSU_I_IN);
+static SENSOR_DEVICE_ATTR(psu_p_in,     S_IRUGO, show_linear,   NULL, PSU_P_IN);
+static SENSOR_DEVICE_ATTR(psu_v_out,        S_IRUGO, show_vout,     NULL, PSU_V_OUT);
+static SENSOR_DEVICE_ATTR(psu_i_out,        S_IRUGO, show_linear,   NULL, PSU_I_OUT);
+static SENSOR_DEVICE_ATTR(psu_p_out,        S_IRUGO, show_linear,   NULL, PSU_P_OUT);
+static SENSOR_DEVICE_ATTR(psu_temp1_input,  S_IRUGO, show_linear,   NULL, PSU_TEMP1_INPUT);
+static SENSOR_DEVICE_ATTR(psu_temp2_input,  S_IRUGO, show_linear,   NULL, PSU_TEMP2_INPUT);
+static SENSOR_DEVICE_ATTR(psu_temp3_input,  S_IRUGO, show_linear,   NULL, PSU_TEMP3_INPUT);
+static SENSOR_DEVICE_ATTR(psu_fan1_speed_rpm, S_IRUGO, show_linear, NULL, PSU_FAN1_SPEED);
+static SENSOR_DEVICE_ATTR(psu_fan1_duty_cycle_percentage, S_IRUGO, show_word, NULL, PSU_FAN1_DUTY_CYCLE);
+static SENSOR_DEVICE_ATTR(psu_mfr_id,       S_IRUGO, show_ascii,  NULL, PSU_MFR_ID);
+static SENSOR_DEVICE_ATTR(psu_mfr_model,    S_IRUGO, show_ascii,  NULL, PSU_MFR_MODEL);
+static SENSOR_DEVICE_ATTR(psu_mfr_revision, S_IRUGO, show_ascii, NULL, PSU_MFR_REVISION);
+static SENSOR_DEVICE_ATTR(psu_mfr_serial,   S_IRUGO, show_ascii, NULL, PSU_MFR_SERIAL);
+static SENSOR_DEVICE_ATTR(psu_mfr_pout_max, S_IRUGO, show_pout_max, NULL, PSU_MFR_POUT_MAX);
 
-static struct attribute *dcs6500_48z8c_psu_attributes[] = {
+static struct attribute *dcs6500_48z8c_attributes[] = {
     &sensor_dev_attr_psu_present.dev_attr.attr,
-    &sensor_dev_attr_psu_model_name.dev_attr.attr,
-    &sensor_dev_attr_psu_serial_number.dev_attr.attr,
+    &sensor_dev_attr_psu_power_on.dev_attr.attr,
+    &sensor_dev_attr_psu_temp_fault.dev_attr.attr,
     &sensor_dev_attr_psu_power_good.dev_attr.attr,
+    &sensor_dev_attr_psu_fan1_fault.dev_attr.attr,
+    &sensor_dev_attr_psu_over_temp.dev_attr.attr,
+    &sensor_dev_attr_psu_v_in.dev_attr.attr,
+    &sensor_dev_attr_psu_i_in.dev_attr.attr,
+    &sensor_dev_attr_psu_p_in.dev_attr.attr,
+    &sensor_dev_attr_psu_v_out.dev_attr.attr,
+    &sensor_dev_attr_psu_i_out.dev_attr.attr,
+    &sensor_dev_attr_psu_p_out.dev_attr.attr,
+    &sensor_dev_attr_psu_temp1_input.dev_attr.attr,
+    &sensor_dev_attr_psu_temp2_input.dev_attr.attr,
+    &sensor_dev_attr_psu_temp3_input.dev_attr.attr,
+    &sensor_dev_attr_psu_fan1_speed_rpm.dev_attr.attr,
+    &sensor_dev_attr_psu_fan1_duty_cycle_percentage.dev_attr.attr,
+    &sensor_dev_attr_psu_mfr_id.dev_attr.attr,
+    &sensor_dev_attr_psu_mfr_model.dev_attr.attr,
+    &sensor_dev_attr_psu_mfr_revision.dev_attr.attr,
+    &sensor_dev_attr_psu_mfr_serial.dev_attr.attr,
+    &sensor_dev_attr_psu_mfr_pout_max.dev_attr.attr,
     NULL
 };
 
-static ssize_t show_status(struct device *dev, struct device_attribute *da,
-                           char *buf)
+static ssize_t show_present(struct device *dev, struct device_attribute *da, char *buf)
 {
-	struct i2c_client *client = to_i2c_client(dev);
-	struct dcs6500_48z8c_psu_data *data = i2c_get_clientdata(client);
-    struct sensor_device_attribute *attr = to_sensor_dev_attr(da);
-    u8 status = 0;
+    struct i2c_client *client = to_i2c_client(dev);
+    struct dcs6500_48z8c_data *data = i2c_get_clientdata(client);
+    int status = 0;
 
     mutex_lock(&data->update_lock);
 
-    data = dcs6500_48z8c_psu_update_device(dev);
-	if (!data->valid) {
-        mutex_unlock(&data->update_lock);
-		return sprintf(buf, "0\n");
-	}
-
-    if (attr->index == PSU_PRESENT) {
-        status = !(data->status >> (1-data->index) & 0x1);
+    status = dcs6500_48z8c_cpld_read(0x62, 0x1d);
+    if (status < 0) {
+        dev_dbg(&client->dev, "cpld reg 0x62 err %d\n", status);
     }
-    else { /* PSU_POWER_GOOD */
-        status = (data->status >> (3-data->index) & 0x1);
+    else {
+        data->status = status;
     }
-
     mutex_unlock(&data->update_lock);
+
+    status = IS_PRESENT(data->chip, data->status);
+
     return sprintf(buf, "%d\n", status);
 }
 
-static ssize_t show_string(struct device *dev, struct device_attribute *da,
-             char *buf)
+static ssize_t show_word(struct device *dev, struct device_attribute *da, char *buf)
 {
-	struct i2c_client *client = to_i2c_client(dev);
-	struct dcs6500_48z8c_psu_data *data = i2c_get_clientdata(client);
     struct sensor_device_attribute *attr = to_sensor_dev_attr(da);
-    char *ptr = NULL;
+    struct dcs6500_48z8c_data *data = dcs6500_48z8c_update_device(dev);
+    u16 status = 0;
 
-    mutex_lock(&data->update_lock);
-
-    data = dcs6500_48z8c_psu_update_device(dev);
     if (!data->valid) {
-        mutex_unlock(&data->update_lock);
-        return -EIO;
+        return 0;
     }
 
     switch (attr->index) {
-    case PSU_MODEL_NAME:
-        ptr = data->model_name;
+    case PSU_POWER_ON: /* psu_power_on, low byte bit 6 of status_word, 0=>ON, 1=>OFF */
+        status = (data->status_word & PB_STATUS_OFF) ? 0 : 1;
         break;
-    case PSU_SERIAL_NUMBER:
-        ptr = data->serial_number;
+    case PSU_TEMP_FAULT: /* psu_temp_fault, low byte bit 2 of status_word, 0=>Normal, 1=>temp fault */
+        status = !!(data->status_word & PB_STATUS_TEMPERATURE);
+        break;
+    case PSU_POWER_GOOD: /* psu_power_good, high byte bit 3 of status_word, 0=>OK, 1=>FAIL */
+        status = (data->status_word & PB_STATUS_POWER_GOOD_N) ? 0 : 1;
+        break;
+    case PSU_FAN1_DUTY_CYCLE:
+        status = (data->fan_speed * 100) / PSU_MAX_FAN_SPEED;
+        status = (status > 100) ? 100 : status;
         break;
     default:
-        mutex_unlock(&data->update_lock);
-        return -EINVAL;
+        return 0;
     }
 
-    mutex_unlock(&data->update_lock);
+    return sprintf(buf, "%d\n", status);
+}
+
+static int two_complement_to_int(u16 data, u8 valid_bit, int mask)
+{
+    u16  valid_data  = data & mask;
+    bool is_negative = valid_data >> (valid_bit - 1);
+
+    return is_negative ? (-(((~valid_data) & mask) + 1)) : valid_data;
+}
+
+static int pmbus_linear16_to_val(int data, int data_exponent, long *val)
+{
+    int exponent, mantissa;
+    int temp_value = 0;
+    int multiplier = 1000;
+
+    if (data < 0)
+    {
+        return data;
+    }
+    if (data_exponent < 0)
+    {
+        return data_exponent;
+    }
+    exponent = two_complement_to_int(data_exponent, 5, 0x1f);
+    mantissa = data;
+    if (exponent >= 0)
+    {
+        temp_value = (mantissa << exponent) * multiplier;
+    }
+    else
+    {
+        temp_value = (mantissa * multiplier) / (1 << -exponent);
+    }
+    *val = temp_value;
+    return 0;
+}
+
+static ssize_t show_linear(struct device *dev, struct device_attribute *da, char *buf)
+{
+    struct sensor_device_attribute *attr = to_sensor_dev_attr(da);
+    struct dcs6500_48z8c_data *data = dcs6500_48z8c_update_device(dev);
+    u8 *ptr = NULL;
+
+    u16 value = 0;
+    int exponent, mantissa;
+    int multiplier = 1000;
+    ptr = data->mfr_model + 1; /* The first byte is the count byte of string. */
+
+    if (!data->valid) {
+        return 0;
+    }
+
+    switch (attr->index) {
+    case PSU_V_IN:
+        value = data->v_in;
+        break;
+    case PSU_I_IN:
+        value = data->i_in;
+        break;
+    case PSU_P_IN:
+        value = data->p_in;
+        break;
+    case PSU_I_OUT:
+        value = data->i_out;
+        break;
+    case PSU_P_OUT:
+        value = data->p_out;
+        break;
+    case PSU_TEMP1_INPUT:
+    case PSU_TEMP2_INPUT:
+    case PSU_TEMP3_INPUT:
+        value = data->temp[attr->index-PSU_TEMP1_INPUT];
+        break;
+    case PSU_FAN1_SPEED:
+        value = data->fan_speed;
+        multiplier = 1;
+        break;
+    default:
+        return 0;
+    }
+
+    exponent = two_complement_to_int(value >> 11, 5, 0x1f);
+    mantissa = two_complement_to_int(value & 0x7ff, 11, 0x7ff);
+
+    return (exponent >= 0) ? sprintf(buf, "%d\n", (mantissa << exponent) * multiplier) :
+                             sprintf(buf, "%d\n", (mantissa * multiplier) / (1 << -exponent));
+}
+
+static ssize_t show_fan_fault(struct device *dev, struct device_attribute *da, char *buf)
+{
+    struct sensor_device_attribute *attr = to_sensor_dev_attr(da);
+    struct dcs6500_48z8c_data *data = dcs6500_48z8c_update_device(dev);
+    u8 shift;
+
+    if (!data->valid) {
+        return 0;
+    }
+
+    shift = (attr->index == PSU_FAN1_FAULT) ? 7 : 6;
+
+    return sprintf(buf, "%d\n", data->fan_fault >> shift);
+}
+
+static ssize_t show_over_temp(struct device *dev, struct device_attribute *da, char *buf)
+{
+    struct dcs6500_48z8c_data *data = dcs6500_48z8c_update_device(dev);
+
+    if (!data->valid) {
+        return 0;
+    }
+
+    return sprintf(buf, "%d\n", data->over_temp >> 7);
+}
+
+static ssize_t show_ascii(struct device *dev, struct device_attribute *da, char *buf)
+{
+    struct sensor_device_attribute *attr = to_sensor_dev_attr(da);
+    struct dcs6500_48z8c_data *data = dcs6500_48z8c_update_device(dev);
+    u8 *ptr = NULL;
+
+    if (!data->valid) {
+        return 0;
+    }
+
+    switch (attr->index) {
+    case PSU_MFR_ID: /* psu_mfr_id */
+            ptr = data->mfr_id + 1; /* The first byte is the count byte of string. */;
+        break;
+    case PSU_MFR_MODEL: /* psu_mfr_model */
+            ptr = data->mfr_model + 1; /* The first byte is the count byte of string. */;
+        break;
+    case PSU_MFR_REVISION: /* psu_mfr_revision */
+            ptr = data->mfr_revsion + 1; /* The first byte is the count byte of string. */;
+        break;
+    case PSU_MFR_SERIAL: /* psu_mfr_serial */
+        ptr = data->mfr_serial + 1; /* The first byte is the count byte of string. */;
+        break;
+    default:
+        return 0;
+    }
+
     return sprintf(buf, "%s\n", ptr);
 }
 
-static const struct attribute_group dcs6500_48z8c_psu_group = {
-    .attrs = dcs6500_48z8c_psu_attributes,
-};
-
-static int dcs6500_48z8c_psu_probe(struct i2c_client *client,
-                                const struct i2c_device_id *dev_id)
+static ssize_t show_vout(struct device *dev, struct device_attribute *da, char *buf)
 {
-    struct dcs6500_48z8c_psu_data *data;
-    int status;
+    struct i2c_client *client = to_i2c_client(dev);
+    struct dcs6500_48z8c_data *data = dcs6500_48z8c_update_device(dev);
+    int status = 0;
+    long val = 0;
 
-    if (!i2c_check_functionality(client->adapter, I2C_FUNC_SMBUS_I2C_BLOCK)) {
-        status = -EIO;
-        goto exit;
+    if (!data->valid) {
+        return 0;
     }
 
-    data = kzalloc(sizeof(struct dcs6500_48z8c_psu_data), GFP_KERNEL);
-    if (!data) {
-        status = -ENOMEM;
-        goto exit;
+    status = pmbus_linear16_to_val(data->v_out, data->vout_mode, &val);
+    if (status < 0) {
+        return 0;
     }
 
-    i2c_set_clientdata(client, data);
-    data->valid = 0;
-    data->index = dev_id->driver_data;
-    mutex_init(&data->update_lock);
+    return sprintf(buf, "%ld\n", val);
+}
 
-    dev_info(&client->dev, "chip found\n");
+static ssize_t show_pout_max(struct device *dev, struct device_attribute *da, char *buf)
+{
+    int val = 650 * 1000;
 
-    /* Register sysfs hooks */
-    status = sysfs_create_group(&client->dev.kobj, &dcs6500_48z8c_psu_group);
-    if (status) {
-        goto exit_free;
+    return sprintf(buf, "%d\n", val);
+}
+
+static int dcs6500_48z8c_read_byte(struct i2c_client *client, u8 reg)
+{
+    int status = 0, retry = I2C_RW_RETRY_COUNT;
+
+    while (retry) {
+        status = i2c_smbus_read_byte_data(client, reg);
+        if (unlikely(status < 0)) {
+            msleep(I2C_RW_RETRY_INTERVAL);
+            retry--;
+            continue;
+        }
+
+        break;
     }
-
-    data->hwmon_dev = hwmon_device_register_with_info(&client->dev, "dcs6500_48z8c_psu",
-                                                      NULL, NULL, NULL);
-    if (IS_ERR(data->hwmon_dev)) {
-        status = PTR_ERR(data->hwmon_dev);
-        goto exit_remove;
-    }
-
-    dev_info(&client->dev, "%s: psu '%s'\n",
-             dev_name(data->hwmon_dev), client->name);
-
-    return 0;
-
-exit_remove:
-    sysfs_remove_group(&client->dev.kobj, &dcs6500_48z8c_psu_group);
-exit_free:
-    kfree(data);
-exit:
 
     return status;
 }
 
-static int dcs6500_48z8c_psu_remove(struct i2c_client *client)
+static int dcs6500_48z8c_read_word(struct i2c_client *client, u8 reg)
 {
-    struct dcs6500_48z8c_psu_data *data = i2c_get_clientdata(client);
+    int status = 0, retry = I2C_RW_RETRY_COUNT;
 
-    hwmon_device_unregister(data->hwmon_dev);
-    sysfs_remove_group(&client->dev.kobj, &dcs6500_48z8c_psu_group);
-    kfree(data);
-
-    return 0;
-}
-
-enum psu_index
-{
-    dcs6500_48z8c_psu1,
-    dcs6500_48z8c_psu2
-};
-
-static const struct i2c_device_id dcs6500_48z8c_psu_id[] = {
-    { "dcs6500_48z8c_psu1", dcs6500_48z8c_psu1 },
-    { "dcs6500_48z8c_psu2", dcs6500_48z8c_psu2 },
-    {}
-};
-MODULE_DEVICE_TABLE(i2c, dcs6500_48z8c_psu_id);
-
-static struct i2c_driver dcs6500_48z8c_psu_driver = {
-    .class        = I2C_CLASS_HWMON,
-    .driver = {
-        .name     = "dcs6500_48z8c_psu",
-    },
-    .probe        = dcs6500_48z8c_psu_probe,
-    .remove       = dcs6500_48z8c_psu_remove,
-    .id_table     = dcs6500_48z8c_psu_id,
-    .address_list = normal_i2c,
-};
-
-static int dcs6500_48z8c_psu_read_block(struct i2c_client *client, u8 command, u8 *data,
-                                     int data_len)
-{
-    int result = 0;
-    int retry_count = 5;
-
-    while (retry_count) {
-        retry_count--;
-
-        result = i2c_smbus_read_i2c_block_data(client, command, data_len, data);
-
-        if (unlikely(result < 0)) {
-            msleep(10);
+    while (retry) {
+        status = i2c_smbus_read_word_data(client, reg);
+        if (unlikely(status < 0)) {
+            msleep(I2C_RW_RETRY_INTERVAL);
+            retry--;
             continue;
         }
 
-        if (unlikely(result != data_len)) {
-            result = -EIO;
-            msleep(10);
-            continue;
-        }
-
-        result = 0;
         break;
     }
 
-    return result;
+    return status;
 }
 
-struct model_name_info {
-    enum psu_type type;
-    u8 offset;
-    u8 length;
-    u8 chk_length;
-    char* model_name;
+static int dcs6500_48z8c_read_block(struct i2c_client *client, u8 command, u8 *data)
+{
+    int status = 0, retry = I2C_RW_RETRY_COUNT;
+    int read_value = 0;
+
+    while (retry) {
+        read_value = i2c_smbus_read_byte_data(client, command);
+        if ((read_value >= (PMBUS_MFR_MAX_LEN-1)) || (read_value < 0))
+        {
+            return -EINVAL;
+        }
+        status = i2c_smbus_read_i2c_block_data(client, command, read_value+1, data);
+        if (unlikely(status < 0)) {
+            msleep(I2C_RW_RETRY_INTERVAL);
+            retry--;
+            continue;
+        }
+        data[read_value+1] = '\0';
+        break;
+    }
+
+    return status;
+}
+
+struct reg_data_byte {
+    u8   reg;
+    u8  *value;
 };
 
-static int acbel_psu_serial_number_get(struct device *dev)
-{
-    struct i2c_client *client = to_i2c_client(dev);
-    struct dcs6500_48z8c_psu_data *data = i2c_get_clientdata(client);
-    int status;
-
-    memset(data->serial_number, 0, sizeof(data->serial_number));
-
-    /* Read from offset 0x2e ~ 0x3d (16 bytes) */
-    status = dcs6500_48z8c_psu_read_block(client, 0x2e,data->serial_number, 16);
-    if (status < 0) {
-        data->serial_number[0] = '\0';
-        dev_dbg(&client->dev, "unable to read model name from (0x%x) offset(0x2e)\n", client->addr);
-        return status;
-    }
-
-    /* Read from offset 0x4f ~ 0x50 (2 bytes) */
-    status = dcs6500_48z8c_psu_read_block(client, 0x4f, data->serial_number + 16, 2);
-    if (status < 0) {
-        data->serial_number[0] = '\0';
-        dev_dbg(&client->dev, "unable to read model name from (0x%x) offset(0x4f)\n", client->addr);
-        return status;
-    }
-
-    return 0;
-}
-
-struct model_name_info models[] = {
-    {PSU_TYPE_AC_110V, 0x20, 8, 8,  "YM-2651Y"},
-    {PSU_TYPE_DC_48V,  0x20, 8, 8,  "YM-2651V"},
-    {PSU_TYPE_DC_12V,  0x00, 11, 11, "PSU-12V-750"},
-    {PSU_TYPE_AC_ACBEL_FSF019, 0x20, 13, 6, "FSF019"},
-    {PSU_TYPE_AC_ACBEL_FSF045, 0x20, 13, 6, "FSF045"}
+struct reg_data_word {
+    u8   reg;
+    u16 *value;
 };
 
-static int dcs6500_48z8c_psu_model_name_get(struct device *dev)
+static struct dcs6500_48z8c_data *dcs6500_48z8c_update_device(struct device *dev)
 {
     struct i2c_client *client = to_i2c_client(dev);
-    struct dcs6500_48z8c_psu_data *data = i2c_get_clientdata(client);
-    int i, status;
+    struct dcs6500_48z8c_data *data = i2c_get_clientdata(client);
 
-    for (i = 0; i < ARRAY_SIZE(models); i++) {
-        memset(data->model_name, 0, sizeof(data->model_name));
-
-        status = dcs6500_48z8c_psu_read_block(client, models[i].offset,
-                                           data->model_name, models[i].length);
-        if (status < 0) {
-            data->model_name[0] = '\0';
-            dev_dbg(&client->dev, "unable to read model name from (0x%x) offset(0x%x)\n",
-                                  client->addr, models[i].offset);
-            return status;
-        }
-        else {
-            data->model_name[models[i].length] = '\0';
-        }
-
-        /* Determine if the model name is known, if not, read next index
-         */
-        if (strncmp(data->model_name, models[i].model_name, models[i].chk_length) == 0) {
-            data->type = models[i].type;
-
-            if ((models[i].type == PSU_TYPE_AC_ACBEL_FSF019) || (models[i].type == PSU_TYPE_AC_ACBEL_FSF045)) {
-                memmove(&data->model_name[7], &data->model_name[9], ARRAY_SIZE(data->model_name)-9);
-                data->model_name[6] = '-';
-                data->model_name[11] = '\0';
-            }
-
-            return 0;
-        }
-        else {
-            data->model_name[0] = '\0';
-        }
-    }
-
-    return -ENODATA;
-}
-
-static struct dcs6500_48z8c_psu_data *dcs6500_48z8c_psu_update_device(struct device *dev)
-{
-    struct i2c_client *client = to_i2c_client(dev);
-    struct dcs6500_48z8c_psu_data *data = i2c_get_clientdata(client);
+    mutex_lock(&data->update_lock);
 
     if (time_after(jiffies, data->last_updated + HZ + HZ / 2)
-            || !data->valid) {
-        int status;
-        int power_good = 0;
+        || !data->valid) {
+        int i, status;
+        struct reg_data_byte regs_byte[] = { {PMBUS_VOUT_MODE, &data->vout_mode},
+                                             {PMBUS_STATUS_TEMPERATURE, &data->over_temp},
+                                             {PMBUS_STATUS_FAN_12, &data->fan_fault}};
+        struct reg_data_word regs_word[] = { {PMBUS_STATUS_WORD, &data->status_word},
+                                             {PMBUS_READ_VIN, &data->v_in},
+                                             {PMBUS_READ_VOUT, &data->v_out},
+                                             {PMBUS_READ_IIN, &data->i_in},
+                                             {PMBUS_READ_IOUT, &data->i_out},
+                                             {PMBUS_READ_POUT, &data->p_out},
+                                             {PMBUS_READ_PIN, &data->p_in},
+                                             {PMBUS_READ_TEMPERATURE_1, &(data->temp[0])},
+                                             {PMBUS_READ_TEMPERATURE_2, &(data->temp[1])},
+                                             {PMBUS_READ_TEMPERATURE_3, &(data->temp[2])},
+                                             {PMBUS_READ_FAN_SPEED_1, &(data->fan_speed)},
+                                             };
 
-        data->valid = 0;
-        dev_dbg(&client->dev, "Starting dcs6500_48z8c update\n");
+        dev_dbg(&client->dev, "Starting dcs6500_48z8c_psu update\n");
 
-        /* Read psu status */
-        status = dcs6500_48z8c_cpld_read(0x60, 0x2);
+        /* Read byte data */
+        for (i = 0; i < ARRAY_SIZE(regs_byte); i++) {
+            status = dcs6500_48z8c_read_byte(client, regs_byte[i].reg);
+            if (status < 0) {
+                dev_dbg(&client->dev, "reg %d, err %d\n",
+                        regs_byte[i].reg, status);
+            }
+            else {
+                *(regs_byte[i].value) = status;
+            }
+        }
 
+        /* Read word data */
+        for (i = 0; i < ARRAY_SIZE(regs_word); i++) {
+            status = dcs6500_48z8c_read_word(client, regs_word[i].reg);
+            if (status < 0) {
+                dev_dbg(&client->dev, "reg %d, err %d\n",
+                        regs_word[i].reg, status);
+            }
+            else {
+                *(regs_word[i].value) = status;
+            }
+
+        }
+        /* Read mfr_id */
+        status = dcs6500_48z8c_read_block(client, PMBUS_MFR_ID, data->mfr_id);
         if (status < 0) {
-            dev_dbg(&client->dev, "cpld reg 0x60 err %d\n", status);
+            dev_dbg(&client->dev, "reg %d, err %d\n", PMBUS_MFR_ID, status);
             goto exit;
         }
-        else {
-            data->status = status;
+        /* Read mfr_model */
+        status = dcs6500_48z8c_read_block(client, PMBUS_MFR_MODEL, data->mfr_model);
+        if (status < 0) {
+            dev_dbg(&client->dev, "reg %d, err %d\n", PMBUS_MFR_MODEL, status);
+            goto exit;
         }
-
-        /* Read model name */
-        memset(data->model_name, 0, sizeof(data->model_name));
-        power_good = (data->status >> (3-data->index) & 0x1);
-
-        if (power_good) {
-            if (dcs6500_48z8c_psu_model_name_get(dev) < 0) {
-                goto exit;
-            }
-            if (data->type == PSU_TYPE_AC_ACBEL_FSF019 &&
-                acbel_psu_serial_number_get(dev) < 0) {
-                goto exit;
-            }
-
-            if (data->type == PSU_TYPE_AC_ACBEL_FSF045 &&
-                acbel_psu_serial_number_get(dev) < 0) {
-                goto exit;
-            }
+        /* Read mfr_revsion */
+        status = dcs6500_48z8c_read_block(client, PMBUS_MFR_REVISION, data->mfr_revsion);
+        if (status < 0) {
+            dev_dbg(&client->dev, "reg %d, err %d\n", PMBUS_MFR_REVISION, status);
+            goto exit;
+        }
+        /* Read mfr_serial */
+        status = dcs6500_48z8c_read_block(client, PMBUS_MFR_SERIAL, data->mfr_serial);
+        if (status < 0) {
+            dev_dbg(&client->dev, "reg %d, err %d\n", PMBUS_MFR_SERIAL, status);
+            goto exit;
         }
 
         data->last_updated = jiffies;
@@ -403,12 +574,101 @@ static struct dcs6500_48z8c_psu_data *dcs6500_48z8c_psu_update_device(struct dev
     }
 
 exit:
+    mutex_unlock(&data->update_lock);
+
     return data;
 }
 
+enum psu_index {
+    dcs6500_48z8c_psu1,
+    dcs6500_48z8c_psu2
+};
+
+static const struct i2c_device_id dcs6500_48z8c_psu_id[] = {
+    { "dcs6500_48z8c_psu1", dcs6500_48z8c_psu1 },
+    { "dcs6500_48z8c_psu2", dcs6500_48z8c_psu2 },
+    { }
+};
+MODULE_DEVICE_TABLE(i2c, dcs6500_48z8c_psu_id);
+
+static const struct attribute_group dcs6500_48z8c_group = {
+    .attrs = dcs6500_48z8c_attributes,
+};
+
+static int dcs6500_48z8c_psu_probe(struct i2c_client *client,
+             const struct i2c_device_id *dev_id)
+{
+    struct dcs6500_48z8c_data *data;
+    int status = 0;
+
+    if (!i2c_check_functionality(client->adapter,
+            I2C_FUNC_SMBUS_READ_BYTE_DATA | I2C_FUNC_SMBUS_READ_WORD_DATA | I2C_FUNC_SMBUS_READ_BLOCK_DATA))
+        return -ENODEV;
+
+    data = kzalloc(sizeof(struct dcs6500_48z8c_data), GFP_KERNEL);
+    if (!data) {
+        status = -ENOMEM;
+        goto exit;
+    }
+
+    i2c_set_clientdata(client, data);
+    mutex_init(&data->update_lock);
+    data->chip = dev_id->driver_data;
+    dev_info(&client->dev, "chip found\n");
+
+    /* Register sysfs hooks */
+    status = sysfs_create_group(&client->dev.kobj, &dcs6500_48z8c_group);
+    if (status) {
+        goto exit_free;
+    }
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4,9,0)
+    data->hwmon_dev = hwmon_device_register_with_info(&client->dev, "dcs6500_48z8c",
+                                                      NULL, NULL, NULL);
+#else
+    data->hwmon_dev = hwmon_device_register(&client->dev);
+#endif
+    if (IS_ERR(data->hwmon_dev)) {
+        status = PTR_ERR(data->hwmon_dev);
+        goto exit_remove;
+    }
+
+    dev_info(&client->dev, "%s: psu '%s'\n",
+         dev_name(data->hwmon_dev), client->name);
+
+    return 0;
+
+exit_remove:
+    sysfs_remove_group(&client->dev.kobj, &dcs6500_48z8c_group);
+exit_free:
+    kfree(data);
+exit:
+    return status;
+}
+
+int dcs6500_48z8c_psu_remove(struct i2c_client *client)
+{
+    struct dcs6500_48z8c_data *data = i2c_get_clientdata(client);
+
+    hwmon_device_unregister(data->hwmon_dev);
+    sysfs_remove_group(&client->dev.kobj, &dcs6500_48z8c_group);
+    kfree(data);
+
+    return 0;
+}
+
+static struct i2c_driver dcs6500_48z8c_psu_driver = {
+    .driver = {
+           .name = "dcs6500_48z8c_psu",
+           },
+    .probe = dcs6500_48z8c_psu_probe,
+    .remove = dcs6500_48z8c_psu_remove,
+    .id_table = dcs6500_48z8c_psu_id,
+};
+
 module_i2c_driver(dcs6500_48z8c_psu_driver);
 
-MODULE_AUTHOR("Brandon Chuang <brandon_chuang@accton.com.tw>");
+MODULE_AUTHOR("vincent_chiang@edge-core.com");
 MODULE_DESCRIPTION("dcs6500_48z8c_psu driver");
 MODULE_LICENSE("GPL");
 
