@@ -30,7 +30,7 @@
 #define PSU_PREFIX_PATH  "/sys/bus/i2c/devices/"
 
 #define MAX_FAN_SPEED     25500
-#define MAX_PSU_FAN_SPEED 25500
+#define MAX_PSU_FAN_SPEED 23000
 
 enum fan_id {
 	FAN_1_ON_FAN_BOARD = 1,
@@ -168,39 +168,6 @@ _onlp_fani_info_get_fan(int fid, onlp_fan_info_t* info)
 	return ONLP_STATUS_OK;
 }
 
-static uint32_t
-_onlp_get_fan_direction_on_psu(void)
-{
-    /* Try to read direction from PSU1.
-     * If PSU1 is not valid, read from PSU2
-     */
-    int i = 0;
-
-    for (i = PSU1_ID; i <= PSU2_ID; i++) {
-        psu_type_t psu_type;
-        psu_type = get_psu_type(i, NULL, 0);
-
-        if (psu_type == PSU_TYPE_UNKNOWN) {
-            continue;
-        }
-
-        switch (psu_type) {
-            case PSU_TYPE_AC_F2B_3YPOWER:
-            case PSU_TYPE_AC_F2B_ACBEL:
-            case PSU_TYPE_DC_48V_F2B:
-                return ONLP_FAN_STATUS_F2B;
-            case PSU_TYPE_AC_B2F_3YPOWER:
-            case PSU_TYPE_AC_B2F_ACBEL:
-            case PSU_TYPE_DC_48V_B2F:
-                return ONLP_FAN_STATUS_B2F;
-            default:
-                return 0;
-        }
-    }
-
-    return 0;
-}
-
 static int
 _onlp_fani_info_get_fan_on_psu(int pid, onlp_fan_info_t* info)
 {
@@ -208,9 +175,8 @@ _onlp_fani_info_get_fan_on_psu(int pid, onlp_fan_info_t* info)
 
 	info->status |= ONLP_FAN_STATUS_PRESENT;
 
-    /* get fan direction
-     */
-    info->status |= _onlp_get_fan_direction_on_psu();
+    /* get fan direction */
+    info->status |= ONLP_FAN_STATUS_B2F;
 
     /* get fan fault status
      */
