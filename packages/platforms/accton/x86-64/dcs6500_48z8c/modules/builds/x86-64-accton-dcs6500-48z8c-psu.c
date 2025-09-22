@@ -111,6 +111,8 @@ struct dcs6500_48z8c_data {
     u8   mfr_model[PMBUS_MFR_MAX_LEN]; /* Register value */
     u8   mfr_revsion[PMBUS_MFR_MAX_LEN]; /* Register value */
     u8   mfr_serial[PMBUS_MFR_MAX_LEN]; /* Register value */
+    u8   mfr_vin_type; /* Register value */
+    u8   led_status;   /* Register value */
 };
 
 static ssize_t show_present(struct device *dev, struct device_attribute *da, char *buf);
@@ -121,6 +123,8 @@ static ssize_t show_fan_fault(struct device *dev, struct device_attribute *da, c
 static ssize_t show_over_temp(struct device *dev, struct device_attribute *da, char *buf);
 static ssize_t show_ascii(struct device *dev, struct device_attribute *da, char *buf);
 static ssize_t show_pout_max(struct device *dev, struct device_attribute *da, char *buf);
+static ssize_t show_vin_type(struct device *dev, struct device_attribute *da, char *buf);
+static ssize_t show_led_status(struct device *dev, struct device_attribute *da, char *buf);
 static struct dcs6500_48z8c_data *dcs6500_48z8c_update_device(struct device *dev);
 extern int dcs6500_48z8c_cpld_read(unsigned short cpld_addr, u8 reg);
 
@@ -146,7 +150,9 @@ enum dcs6500_48z8c_sysfs_attributes {
     PSU_MFR_MODEL,
     PSU_MFR_REVISION,
     PSU_MFR_SERIAL,
-    PSU_MFR_POUT_MAX
+    PSU_MFR_POUT_MAX,
+    PSU_MFR_VIN_TYPE,
+    PSU_LED_STATUS
 };
 
 /* sysfs attributes for hwmon
@@ -173,6 +179,8 @@ static SENSOR_DEVICE_ATTR(psu_mfr_model,    S_IRUGO, show_ascii,  NULL, PSU_MFR_
 static SENSOR_DEVICE_ATTR(psu_mfr_revision, S_IRUGO, show_ascii, NULL, PSU_MFR_REVISION);
 static SENSOR_DEVICE_ATTR(psu_mfr_serial,   S_IRUGO, show_ascii, NULL, PSU_MFR_SERIAL);
 static SENSOR_DEVICE_ATTR(psu_mfr_pout_max, S_IRUGO, show_pout_max, NULL, PSU_MFR_POUT_MAX);
+static SENSOR_DEVICE_ATTR(psu_mfr_vin_type, S_IRUGO, show_vin_type, NULL, PSU_MFR_VIN_TYPE);
+static SENSOR_DEVICE_ATTR(psu_led_status, S_IRUGO, show_led_status, NULL, PSU_LED_STATUS);
 
 static struct attribute *dcs6500_48z8c_attributes[] = {
     &sensor_dev_attr_psu_present.dev_attr.attr,
@@ -197,6 +205,8 @@ static struct attribute *dcs6500_48z8c_attributes[] = {
     &sensor_dev_attr_psu_mfr_revision.dev_attr.attr,
     &sensor_dev_attr_psu_mfr_serial.dev_attr.attr,
     &sensor_dev_attr_psu_mfr_pout_max.dev_attr.attr,
+    &sensor_dev_attr_psu_mfr_vin_type.dev_attr.attr,
+    &sensor_dev_attr_psu_led_status.dev_attr.attr,
     NULL
 };
 
@@ -422,6 +432,28 @@ static ssize_t show_pout_max(struct device *dev, struct device_attribute *da, ch
     return sprintf(buf, "%d\n", val);
 }
 
+static ssize_t show_vin_type(struct device *dev, struct device_attribute *da, char *buf)
+{
+    struct dcs6500_48z8c_data *data = dcs6500_48z8c_update_device(dev);
+
+    if (!data->valid) {
+        return 0;
+    }
+
+    return sprintf(buf, "%d\n", data->mfr_vin_type);
+}
+
+static ssize_t show_led_status(struct device *dev, struct device_attribute *da, char *buf)
+{
+    struct dcs6500_48z8c_data *data = dcs6500_48z8c_update_device(dev);
+
+    if (!data->valid) {
+        return 0;
+    }
+
+    return sprintf(buf, "%d\n", data->led_status);
+}
+
 static int dcs6500_48z8c_read_byte(struct i2c_client *client, u8 reg)
 {
     int status = 0, retry = I2C_RW_RETRY_COUNT;
@@ -504,7 +536,10 @@ static struct dcs6500_48z8c_data *dcs6500_48z8c_update_device(struct device *dev
         int i, status;
         struct reg_data_byte regs_byte[] = { {PMBUS_VOUT_MODE, &data->vout_mode},
                                              {PMBUS_STATUS_TEMPERATURE, &data->over_temp},
-                                             {PMBUS_STATUS_FAN_12, &data->fan_fault}};
+                                             {PMBUS_STATUS_FAN_12, &data->fan_fault},
+                                             {PMBUS_MFR_PSU_VIN_TYPE, &data->mfr_vin_type},
+                                             {PMBUS_READ_LED_STATUS, &data->led_status},
+                                             };
         struct reg_data_word regs_word[] = { {PMBUS_STATUS_WORD, &data->status_word},
                                              {PMBUS_READ_VIN, &data->v_in},
                                              {PMBUS_READ_VOUT, &data->v_out},

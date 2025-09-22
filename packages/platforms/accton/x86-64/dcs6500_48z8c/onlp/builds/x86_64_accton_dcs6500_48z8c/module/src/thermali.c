@@ -29,7 +29,8 @@
 #include "platform_lib.h"
 
 #define THERMAL_PATH_FORMAT 	"/sys/bus/i2c/devices/%s/*temp1_input"
-#define PSU_THERMAL_PATH_FORMAT "/sys/bus/i2c/devices/%s/*psu_temp1_input"
+#define PSU_THERMAL_1_PATH_FORMAT "/sys/bus/i2c/devices/%s/*psu_temp1_input"
+#define PSU_THERMAL_2_PATH_FORMAT "/sys/bus/i2c/devices/%s/*psu_temp2_input"
 
 #define VALIDATE(_id)                           \
     do {                                        \
@@ -45,21 +46,23 @@ enum onlp_thermal_id
     THERMAL_1_ON_MAIN_BROAD,
     THERMAL_2_ON_MAIN_BROAD,
     THERMAL_3_ON_MAIN_BROAD,
-    THERMAL_4_ON_MAIN_BROAD,
     THERMAL_1_ON_PSU1,
+    THERMAL_2_ON_PSU1,
     THERMAL_1_ON_PSU2,
+    THERMAL_2_ON_PSU2,
 };
 
 static char* directory[] =  /* must map with onlp_thermal_id */
 {
     NULL,
     NULL,                  /* CPU_CORE files */
-    "15-0048",
-    "15-0049",
-    "15-004a",
-    "15-004b",
-    "17-0059",
-    "13-005b",	
+    "7-004a",
+    "7-004b",
+    "7-004c",
+    "1-005a",
+    "1-005a",
+    "2-0059",
+    "2-0059",
 };
 
 static char* cpu_coretemp_files[] =
@@ -78,19 +81,15 @@ static onlp_thermal_info_t linfo[] = {
             ONLP_THERMAL_STATUS_PRESENT,
             ONLP_THERMAL_CAPS_ALL, 0, ONLP_THERMAL_THRESHOLD_INIT_DEFAULTS
         },	
-	{ { ONLP_THERMAL_ID_CREATE(THERMAL_1_ON_MAIN_BROAD), "LM75-1-48", 0}, 
+	{ { ONLP_THERMAL_ID_CREATE(THERMAL_3_ON_MAIN_BROAD), "LM75-1-4A", 0}, 
             ONLP_THERMAL_STATUS_PRESENT,
             ONLP_THERMAL_CAPS_ALL, 0, ONLP_THERMAL_THRESHOLD_INIT_DEFAULTS
         },
-	{ { ONLP_THERMAL_ID_CREATE(THERMAL_2_ON_MAIN_BROAD), "LM75-2-49", 0}, 
+	{ { ONLP_THERMAL_ID_CREATE(THERMAL_3_ON_MAIN_BROAD), "LM75-2-4B", 0}, 
             ONLP_THERMAL_STATUS_PRESENT,
             ONLP_THERMAL_CAPS_ALL, 0, ONLP_THERMAL_THRESHOLD_INIT_DEFAULTS
         },
-	{ { ONLP_THERMAL_ID_CREATE(THERMAL_3_ON_MAIN_BROAD), "LM75-3-4A", 0}, 
-            ONLP_THERMAL_STATUS_PRESENT,
-            ONLP_THERMAL_CAPS_ALL, 0, ONLP_THERMAL_THRESHOLD_INIT_DEFAULTS
-        },
-	{ { ONLP_THERMAL_ID_CREATE(THERMAL_3_ON_MAIN_BROAD), "LM75-4-4B", 0}, 
+	{ { ONLP_THERMAL_ID_CREATE(THERMAL_3_ON_MAIN_BROAD), "LM75-3-4C", 0}, 
             ONLP_THERMAL_STATUS_PRESENT,
             ONLP_THERMAL_CAPS_ALL, 0, ONLP_THERMAL_THRESHOLD_INIT_DEFAULTS
         },
@@ -98,7 +97,15 @@ static onlp_thermal_info_t linfo[] = {
             ONLP_THERMAL_STATUS_PRESENT,
             ONLP_THERMAL_CAPS_ALL, 0, ONLP_THERMAL_THRESHOLD_INIT_DEFAULTS
         },
+	{ { ONLP_THERMAL_ID_CREATE(THERMAL_2_ON_PSU1), "PSU-1 Thermal Sensor 2", ONLP_PSU_ID_CREATE(PSU1_ID)}, 
+            ONLP_THERMAL_STATUS_PRESENT,
+            ONLP_THERMAL_CAPS_ALL, 0, ONLP_THERMAL_THRESHOLD_INIT_DEFAULTS
+        },
 	{ { ONLP_THERMAL_ID_CREATE(THERMAL_1_ON_PSU2), "PSU-2 Thermal Sensor 1", ONLP_PSU_ID_CREATE(PSU2_ID)}, 
+            ONLP_THERMAL_STATUS_PRESENT,
+            ONLP_THERMAL_CAPS_ALL, 0, ONLP_THERMAL_THRESHOLD_INIT_DEFAULTS
+        },
+	{ { ONLP_THERMAL_ID_CREATE(THERMAL_2_ON_PSU2), "PSU-2 Thermal Sensor 2", ONLP_PSU_ID_CREATE(PSU2_ID)}, 
             ONLP_THERMAL_STATUS_PRESENT,
             ONLP_THERMAL_CAPS_ALL, 0, ONLP_THERMAL_THRESHOLD_INIT_DEFAULTS
         }
@@ -144,12 +151,15 @@ onlp_thermali_info_get(onlp_oid_t id, onlp_thermal_info_t* info)
     	case THERMAL_1_ON_MAIN_BROAD:
     	case THERMAL_2_ON_MAIN_BROAD:
     	case THERMAL_3_ON_MAIN_BROAD:
-    	case THERMAL_4_ON_MAIN_BROAD:
 			format = THERMAL_PATH_FORMAT;
 			break;
     	case THERMAL_1_ON_PSU1:
     	case THERMAL_1_ON_PSU2:
-			format = PSU_THERMAL_PATH_FORMAT;
+			format = PSU_THERMAL_1_PATH_FORMAT;
+			break;
+    	case THERMAL_2_ON_PSU1:
+    	case THERMAL_2_ON_PSU2:
+			format = PSU_THERMAL_2_PATH_FORMAT;
 			break;
 		default:
 			return ONLP_STATUS_E_INVALID;

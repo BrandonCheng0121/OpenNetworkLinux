@@ -39,8 +39,8 @@
 
 #define NUM_OF_FAN_ON_MAIN_BROAD      6
 
-#define PREFIX_PATH_ON_CPLD_DEV          "/sys/bus/i2c/devices/"
 #define NUM_OF_CPLD                      3
+#define CPLD_VER_MAX_STR_LEN             20
 #define FAN_DUTY_CYCLE_MAX         (100)
 #define FAN_DUTY_CYCLE_DEFAULT     (32)
 #define FAN_DUTY_PLUS_FOR_DIR      (13)
@@ -49,13 +49,6 @@
 #define FAN_ID_FOR_SET_FAN_DUTY    (1)
 #define CELSIUS_RECORD_NUMBER      (2)  /*Must >= 2*/
 
-
-static char arr_cplddev_name[NUM_OF_CPLD][10] =
-{
- "18-0060",
- "12-0062",
- "19-0064"
-};
 
 const char*
 onlp_sysi_platform_get(void)
@@ -68,25 +61,39 @@ onlp_sysi_onie_data_get(uint8_t** data, int* size)
 {
     const int len = 256;
     uint8_t* rdata = aim_zmalloc(len);
-    char *paths[] = {IDPROM_PATH_2, IDPROM_PATH_1};
     int  ret = ONLP_STATUS_OK;
-    int i;
-    
-    for (i = 0 ; i < AIM_ARRAYSIZE(paths); i++ ){
-        ret = onlp_file_open(O_RDONLY, 0, paths[i]);
-        if (ret >= 0) {
-            close(ret);
-            if(onlp_file_read(rdata, len, size, paths[i]) == ONLP_STATUS_OK) {
-                if(*size == len) {
-                    *data = rdata;
-                    return ONLP_STATUS_OK;
-                }
+
+    ret = onlp_file_open(O_RDONLY, 0, IDPROM_PATH);
+    if (ret >= 0) {
+        close(ret);
+        if(onlp_file_read(rdata, len, size, IDPROM_PATH) == ONLP_STATUS_OK) {
+            if(*size == len) {
+                *data = rdata;
+                return ONLP_STATUS_OK;
             }
         }
     }
+
     aim_free(rdata);
     *size = 0;
     return ONLP_STATUS_E_INTERNAL;
+}
+
+void onlp_sysi_onie_data_free(uint8_t* data)
+{
+    if (data)
+        aim_free(data);
+}
+
+int onlp_sysi_onie_info_get(onlp_onie_info_t* onie)
+{
+    int ret = ONLP_STATUS_OK;
+
+    ret = onlp_onie_decode_file(onie, IDPROM_PATH);
+
+    onie->_hdr_id_string = aim_fstrdup("TlvInfo");
+    onie->_hdr_version = 0x1;
+    return ret;
 }
 
 int
@@ -96,12 +103,12 @@ onlp_sysi_oids_get(onlp_oid_t* table, int max)
     onlp_oid_t* e = table;
     memset(table, 0, max*sizeof(onlp_oid_t));
 
-    /* 5 Thermal sensors on the chassis */
+    /* 4 Thermal sensors on the chassis */
     for (i = 1; i <= CHASSIS_THERMAL_COUNT; i++) {
         *e++ = ONLP_THERMAL_ID_CREATE(i);
     }
 
-    /* 5 LEDs on the chassis */
+    /* 3 LEDs on the chassis */
     for (i = 1; i <= CHASSIS_LED_COUNT; i++) {
         *e++ = ONLP_LED_ID_CREATE(i);
     }
@@ -119,19 +126,34 @@ onlp_sysi_oids_get(onlp_oid_t* table, int max)
     return 0;
 }
 
+static char* cpld_ver_path[NUM_OF_CPLD] = {
+    "/sys/bus/i2c/devices/157-0062/", /* FPGA */
+    "/sys/bus/i2c/devices/157-0062/", /* CPLD-1 */
+    "/sys/bus/i2c/devices/158-0064/"  /* CPLD-2 */
+};
+
 int
 onlp_sysi_platform_info_get(onlp_platform_info_t* pi)
 {
-    int   i, v[NUM_OF_CPLD]={0};
+
+    int i = 0;
+    int len = 0;
+    char *string = NULL;
+    char ver[NUM_OF_CPLD][CPLD_VER_MAX_STR_LEN]={{0}};
 
     for (i = 0; i < NUM_OF_CPLD; i++) {
-        v[i] = 0;
-
-        if(onlp_file_read_int(v+i, "%s%s/version", PREFIX_PATH_ON_CPLD_DEV, arr_cplddev_name[i]) < 0) {
+        len = onlp_file_read_str(&string, cpld_ver_path[i]);
+        if (string && len) {
+            strncpy(ver[i], string, len);
+            aim_free(string);
+        } else {
             return ONLP_STATUS_E_INTERNAL;
         }
     }
-    pi->cpld_versions = aim_fstrdup("%d.%d.%d", v[0], v[1], v[2]);
+
+    pi->cpld_versions = aim_fstrdup("\r\nFPGA:%s\r\nCPLD-1:%s"
+                                    "\r\nCPLD-2:%s",
+                                    ver[0], ver[1], ver[2]);
 
     return 0;
 }
