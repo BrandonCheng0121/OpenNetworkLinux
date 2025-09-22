@@ -37,12 +37,12 @@
 #include "x86_64_accton_dcs6500_48z8c_log.h"
 #include <onlplib/i2c.h>
 
-#define NUM_OF_FAN_ON_MAIN_BROAD      6
+#define NUM_OF_FAN_ON_MAIN_BROAD      8
 
 #define NUM_OF_CPLD                      3
 #define CPLD_VER_MAX_STR_LEN             20
 #define FAN_DUTY_CYCLE_MAX         (100)
-#define FAN_DUTY_CYCLE_DEFAULT     (32)
+#define FAN_DUTY_CYCLE_DEFAULT     (50)
 #define FAN_DUTY_PLUS_FOR_DIR      (13)
 /* Note, all chassis fans share 1 single duty setting.
  * Here use fan 1 to represent global fan duty value.*/
@@ -118,7 +118,7 @@ onlp_sysi_oids_get(onlp_oid_t* table, int max)
         *e++ = ONLP_PSU_ID_CREATE(i);
     }
 
-    /* 6 Fans on the chassis */
+    /* 8 Fans on the chassis */
     for (i = 1; i <= CHASSIS_FAN_COUNT; i++) {
         *e++ = ONLP_FAN_ID_CREATE(i);
     }
@@ -193,98 +193,40 @@ enum
 };
 
 fan_ctrl_policy_t  fan_thermal_policy[] = {
-{38,  0x4, 0,     39000,   LEVEL_FAN_DEF},
-{75,  0xB, 39000, 45000,   LEVEL_FAN_MID},
-{100, 0xE, 45000, 61000,   LEVEL_FAN_MAX},
-{100, 0xE, 61000, 66000,   LEVEL_TEMP_HIGH},
-{100, 0xE, 66000, 200000,  LEVEL_TEMP_CRITICAL}
+    {50,  8,  0,      140000, LEVEL_FAN_DEF},
+    {62,  10, 140000, 150000, LEVEL_FAN_MID},
+    {100, 12, 150000, 160000, LEVEL_FAN_MAX},
+    {100, 14, 160000, 240000, LEVEL_TEMP_HIGH},
+    {100, 16, 240000, 300000, LEVEL_TEMP_CRITICAL },
 };
 
-#define FAN_SPEED_CTRL_PATH "/sys/bus/i2c/devices/11-0066/fan_duty_cycle_percentage"
+#define FAN_SPEED_CTRL_PATH "/sys/bus/i2c/devices/157-0062/fan_duty_cycle_percentage"
 
 static int fan_state=LEVEL_FAN_DEF;
-static int alarm_state = 0; /* 0->default or clear, 1-->alarm detect */
-int
-onlp_sysi_platform_manage_fans(void)
-{
+static int fan_fail = 0;
+
+int onlp_sysi_platform_manage_fans(void)
+    {
     int i=0, ori_state=LEVEL_FAN_DEF, current_state=LEVEL_FAN_DEF;
     int  fd, len;
     int cur_duty_cycle, new_duty_cycle, temp=0;
-    onlp_thermal_info_t thermal_3, thermal_5;
+    onlp_thermal_info_t thermali[3];
     char  buf[10] = {0};
-    int wdt_status = 0;
-    int wdt_timer = 0;
-    char wdt_status_path[64] = {0};
-    char wdt_timer_path[64] = {0};
-    /* set wdt timer 240s */
-    wdt_timer = 0xf0;
-    static int failed_cnt = 0;
-    static int failed_first_log = 0;
-
-    sprintf(wdt_status_path, "%s""fan_wdt_status", FAN_BOARD_PATH);
-    sprintf(wdt_timer_path, "%s""fan_wdt_timer", FAN_BOARD_PATH);
-    /*  Check WDT state, if WDT disable, Enable WDT and kick */
-    if (onlp_file_read_int(&wdt_status, wdt_status_path) < 0) {
-        failed_cnt++;
-    }
-    else
-    {
-        if (wdt_status == FAN_BOARD_CPLD_WDT_DISABLE)
-        {
-            AIM_SYSLOG_WARN("Fan-WDT Disable", "Fan-WDT Disable","Alarm for Fan-WDT Disable is detected");
-            /* Enable WDT */
-            if (onlp_file_write_integer(wdt_status_path, FAN_BOARD_CPLD_WDT_ENABLE) < 0) {
-                failed_cnt++;
-            }
-            else
-            {
-                /* kicks */
-                if (onlp_file_write_integer(wdt_timer_path, wdt_timer) < 0) {
-                    failed_cnt++;
-                }
-            }
-        }
-        else
-        {
-            /* kicks */
-            if (onlp_file_write_integer(wdt_timer_path, wdt_timer) < 0) {
-                failed_cnt++;
-            }
-        }
-    }
-    /* To ensure generate log message for first failed */
-    if((failed_first_log == 0) && (failed_cnt > 0))
-    {
-        failed_first_log = 1;
-        AIM_LOG_ERROR("Unable to read status from file (%s) or (%s)\r\n", wdt_status_path, wdt_timer_path);
-    }
-    /* Print the error log if the total falied counts equal or over 360 counts.
-       It can decrese number of log message.
-       polling every 10 sec. Polling 360 counts for one hour if it is failed to access fan cpld watchdog.
-    */
-    if(failed_cnt >= 360)
-    {
-        failed_cnt = 0;
-        AIM_LOG_ERROR("Unable to read status from file (%s) or (%s)\r\n", wdt_status_path, wdt_timer_path);
-    }
 
     /* Get current temperature
      */
-    if (onlp_thermali_info_get(ONLP_THERMAL_ID_CREATE(3), &thermal_3) != ONLP_STATUS_OK  )
+    for (i=0; i<3; i++)
     {
-        AIM_LOG_ERROR("Unable to read thermal status, set fans to 75 %% speed");
-        onlp_fani_percentage_set(ONLP_FAN_ID_CREATE(1), fan_thermal_policy[LEVEL_FAN_MID].duty_cycle);
-        return ONLP_STATUS_E_INTERNAL;
-    }
-    if(onlp_thermali_info_get(ONLP_THERMAL_ID_CREATE(5), &thermal_5) != ONLP_STATUS_OK)
-    {
-        AIM_LOG_ERROR("Unable to read thermal status, set fans to 75 %% speed");
-        onlp_fani_percentage_set(ONLP_FAN_ID_CREATE(1), fan_thermal_policy[LEVEL_FAN_MID].duty_cycle);
-        return ONLP_STATUS_E_INTERNAL;
+        if (onlp_thermali_info_get(ONLP_THERMAL_ID_CREATE(i+2), &thermali[i]) != ONLP_STATUS_OK  )
+        {   
+            AIM_LOG_ERROR("Unable to read thermal status, set fans to 87 %% speed");
+            onlp_fani_percentage_set(ONLP_FAN_ID_CREATE(1), fan_thermal_policy[LEVEL_TEMP_HIGH].duty_cycle);
+            return ONLP_STATUS_E_INTERNAL;
+        }
+        temp+=thermali[i].mcelsius;
     }
 
-    temp = (thermal_3.mcelsius + thermal_5.mcelsius)/2;
-
+    
     /* Get current fan pwm percent
      */
     fd = open(FAN_SPEED_CTRL_PATH, O_RDONLY);
@@ -311,131 +253,61 @@ onlp_sysi_platform_manage_fans(void)
             }
         }
     }
-
+    if(current_state > LEVEL_TEMP_CRITICAL || current_state < LEVEL_FAN_DEF)
+    {
+        AIM_LOG_ERROR("onlp_sysi_platform_manage_fans get error  current_state\n");
+        return 0;
+    }
     /* Decision 3: Decide new fan pwm percent.
      */
-    if (cur_duty_cycle!=fan_thermal_policy[current_state].duty_cycle)
+    if (fan_fail==0 &&cur_duty_cycle!=fan_thermal_policy[current_state].duty_cycle)
     {
         new_duty_cycle = fan_thermal_policy[current_state].duty_cycle;
         onlp_fani_percentage_set(ONLP_FAN_ID_CREATE(1), new_duty_cycle);
     }
-
     /* Get each fan status
      */
-    for (i = 1; i <= NUM_OF_FAN_ON_MAIN_BROAD; i++)
+    for (i = 1; i <= CHASSIS_FAN_COUNT; i++)
     {
         onlp_fan_info_t fan_info;
-
         if (onlp_fani_info_get(ONLP_FAN_ID_CREATE(i), &fan_info) != ONLP_STATUS_OK) {
             AIM_LOG_ERROR("Unable to get fan(%d) status, try to set the other fans as full speed\r\n", i);
             onlp_fani_percentage_set(ONLP_FAN_ID_CREATE(1), FAN_DUTY_CYCLE_MAX);
-            if (fan_state < LEVEL_FAN_MAX)
-            {
-                fan_state=LEVEL_FAN_MAX;
-                current_state=fan_state;
-            }
-            if(current_state <LEVEL_FAN_MAX )
-                current_state=LEVEL_FAN_MAX;
+            fan_fail=1;
             break;
         }
+        else
+        {
+            fan_fail = 0;
+	}
         /* Decision 1: Set fan as full speed if any fan is failed.
          */
-        if (fan_info.status & ONLP_FAN_STATUS_FAILED || !(fan_info.status & ONLP_FAN_STATUS_PRESENT)) {
+        if (fan_info.status & ONLP_FAN_STATUS_FAILED || !(fan_info.status & ONLP_FAN_STATUS_PRESENT))
+        {
             AIM_LOG_ERROR("Fan(%d) is not working, set the other fans as full speed\r\n", i);
             onlp_fani_percentage_set(ONLP_FAN_ID_CREATE(1), FAN_DUTY_CYCLE_MAX);
-            if (fan_state < LEVEL_FAN_MAX)
-            {
-                fan_state=LEVEL_FAN_MAX;
-                current_state=fan_state;
-            }
-            if(current_state <LEVEL_FAN_MAX )
-                current_state=LEVEL_FAN_MAX;
+            fan_fail=1;
             break;
         }
+        else 
+        {
+            fan_fail = 0;
+        }
     }
-
+    if(thermali[2].mcelsius >= 70000) /*LM75-48*/
+    {
+        /*critical case*/
+        AIM_SYSLOG_CRIT("Temperature critical", "Temperature critical", "Alarm for temperature critical is detected, reset DUT");
+        sleep(2);
+        //system(SHUTDOWN_DUT_CMD);
+    }
     if(current_state!=ori_state)
     {
-         fan_state=current_state;
-
-         switch (ori_state)
-         {
-             case LEVEL_FAN_DEF:
-                 if(current_state==LEVEL_TEMP_HIGH)
-                 {
-                     if(alarm_state==0)
-                     {
-                        AIM_SYSLOG_WARN("Temperature high", "Temperature high","Alarm for temperature high is detected");
-                        alarm_state=1;
-                     }
-                 }
-                 if(current_state==LEVEL_TEMP_CRITICAL)
-                 {
-                     AIM_SYSLOG_CRIT("Temperature critical", "Temperature critical", "Alarm for temperature critical is detected, reboot DUT");
-                     system("sync;sync;sync");
-                     system("reboot");
-                 }
-                 break;
-             case LEVEL_FAN_MID:
-                 if(current_state==LEVEL_TEMP_HIGH)
-                 {
-                     if(alarm_state==0)
-                     {
-                        AIM_SYSLOG_WARN("Temperature high", "Temperature high","Alarm for temperature high is detected");
-                        alarm_state=1;
-                     }
-                 }
-                 if(current_state==LEVEL_TEMP_CRITICAL)
-                 {
-                     AIM_SYSLOG_CRIT("Temperature critical", "Temperature critical", "Alarm for temperature critical is detected, reboot DUT");
-                     system("sync;sync;sync");
-                     system("reboot");
-                 }
-                 break;
-             case LEVEL_FAN_MAX:
-                 if(current_state==LEVEL_TEMP_HIGH)
-                 {
-                     if(alarm_state==0)
-                     {
-                        AIM_SYSLOG_WARN("Temperature high", "Temperature high","Alarm for temperature high is detected");
-                        alarm_state=1;
-                     }
-                 }
-                 if(current_state==LEVEL_TEMP_CRITICAL)
-                 {
-                     AIM_SYSLOG_CRIT("Temperature critical", "Temperature critical ", "Alarm for temperature critical is detected, reboot DUT");
-                     system("sync;sync;sync");
-                     system("reboot");
-                 }
-                 break;
-             case LEVEL_TEMP_HIGH:
-                 if(current_state==LEVEL_TEMP_CRITICAL)
-                 {
-                     AIM_SYSLOG_CRIT("Temperature critical", "Temperature critical ", "Alarm for temperature critical is detected, reboot DUT");
-                     system("sync;sync;sync");
-                     system("reboot");
-                 }
-                 break;
-             case LEVEL_TEMP_CRITICAL:
-                 break;
-             default:
-                AIM_SYSLOG_WARN("onlp_sysi_platform_manage_fans abnormal state", "onlp_sysi_platform_manage_fans  abnormal state", "onlp_sysi_platform_manage_fans at abnormal state\n");
-                 break;
-         }
-
-    }
-    if(alarm_state==1 && current_state < LEVEL_TEMP_HIGH)
-    {
-       if (temp < (fan_thermal_policy[3].temp_down - 5000)) /*below 65 C, clear alarm*/
-       {
-           AIM_SYSLOG_INFO("Temperature high is clean", "Temperature high is clear", "Alarm for temperature high is cleared");
-           alarm_state=0;
-       }
+        fan_state=current_state;
     }
 
     return 0;
 }
-
 
 int
 onlp_sysi_platform_manage_leds(void)

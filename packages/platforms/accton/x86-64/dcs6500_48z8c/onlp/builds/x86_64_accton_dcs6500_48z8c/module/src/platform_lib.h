@@ -47,15 +47,8 @@
 #define PSU1_AC_PMBUS_NODE(node) PSU1_AC_PMBUS_PREFIX#node
 #define PSU2_AC_PMBUS_NODE(node) PSU2_AC_PMBUS_PREFIX#node
 
-#define FAN_BOARD_PATH	"/sys/bus/i2c/devices/11-0066/"
-#define FAN_NODE(node)	FAN_BOARD_PATH#node
-#define FAN_BOARD_CPLD_BUS              11
-#define FAN_BOARD_CPLD_REG              0x66
-#define FAN_BOARD_CPLD_OFFSET_WDT_ENDIS 0x33
-#define FAN_BOARD_CPLD_OFFSET_WDT_TIMER 0x31
-#define FAN_BOARD_CPLD_WDT_ENABLE       0x1
-#define FAN_BOARD_CPLD_WDT_DISABLE      0x0
-#define FAN_BOARD_CPLD_WDT_MAX_PWM      0xF
+#define CPLD_NODE_PATH	"/sys/bus/i2c/devices/i2c-157/157-0062/"
+#define FAN_NODE(node)	CPLD_NODE_PATH#node
 
 #define IDPROM_PATH "/sys/bus/i2c/devices/0-0050/eeprom"
 

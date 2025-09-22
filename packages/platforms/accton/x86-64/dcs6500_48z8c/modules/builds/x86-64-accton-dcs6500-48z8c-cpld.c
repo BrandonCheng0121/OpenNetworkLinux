@@ -71,7 +71,7 @@ static const u8 fan_reg[] = {
     0x3E,      /* rear fan1 speed(rpm) */
     0x3F,      /* rear fan2 speed(rpm) */
     0x40,      /* rear fan3 speed(rpm) */
-    0x4E,      /* rear fan4 speed(rpm) */
+    0x41,      /* rear fan4 speed(rpm) */
 };
 
 #define FAN_WATCHDOG_EN_REG 0x2E

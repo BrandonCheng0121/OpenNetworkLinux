@@ -32,26 +32,30 @@
 #define MAX_FAN_SPEED     25500
 #define MAX_PSU_FAN_SPEED 23000
 
+#define XSTR(s) STR(s)
+#define STR(s) #s
+
 enum fan_id {
-	FAN_1_ON_FAN_BOARD = 1,
-	FAN_2_ON_FAN_BOARD,
-	FAN_3_ON_FAN_BOARD,
-	FAN_4_ON_FAN_BOARD,
-	FAN_5_ON_FAN_BOARD,
-	FAN_6_ON_FAN_BOARD,
+    FAN_BOX1_FRONT_1 = 1,
+    FAN_BOX1_FRONT_2,
+    FAN_BOX2_FRONT_3,
+    FAN_BOX2_FRONT_4,
+    FAN_BOX1_REAR_1,
+    FAN_BOX1_REAR_2,
+    FAN_BOX2_REAR_3,
+    FAN_BOX2_REAR_4,
 	FAN_1_ON_PSU_1,
-	FAN_1_ON_PSU_2,
+	FAN_1_ON_PSU_2
 };
 
-#define CHASSIS_FAN_INFO(fid) \
-    { \
-        { ONLP_FAN_ID_CREATE(FAN_##fid##_ON_FAN_BOARD), "Chassis Fan - "#fid, 0 },\
-        0x0,\
-        ONLP_FAN_CAPS_SET_PERCENTAGE | ONLP_FAN_CAPS_GET_RPM | ONLP_FAN_CAPS_GET_PERCENTAGE,\
-        0,\
-        0,\
-        ONLP_FAN_MODE_INVALID,\
-    }
+#define CHASSIS_FAN_INFO(boxid, location, fid) \
+{ \
+   { ONLP_FAN_ID_CREATE(FAN_BOX##boxid##_##location##_##fid), "Chassis Fan - FAN_BOX" XSTR(boxid) "_" XSTR(location) " " XSTR(fid), 0 },         0x0,\
+    ONLP_FAN_CAPS_SET_PERCENTAGE | ONLP_FAN_CAPS_GET_RPM | ONLP_FAN_CAPS_GET_PERCENTAGE,\
+    0,\
+    0,\
+    ONLP_FAN_MODE_INVALID,\
+}
 
 #define PSU_FAN_INFO(pid, fid) \
     { \
@@ -66,15 +70,17 @@ enum fan_id {
 /* Static fan information */
 onlp_fan_info_t finfo[] = {
     { }, /* Not used */
-	CHASSIS_FAN_INFO(1),
-	CHASSIS_FAN_INFO(2),
-	CHASSIS_FAN_INFO(3),
-	CHASSIS_FAN_INFO(4),
-	CHASSIS_FAN_INFO(5),
-	CHASSIS_FAN_INFO(6),
-	PSU_FAN_INFO(1,1),
-	PSU_FAN_INFO(2,1)
-};
+    CHASSIS_FAN_INFO(1,FRONT,1),
+    CHASSIS_FAN_INFO(1,FRONT,2),
+    CHASSIS_FAN_INFO(2,FRONT,3),
+    CHASSIS_FAN_INFO(2,FRONT,4),
+    CHASSIS_FAN_INFO(1,REAR,1),
+    CHASSIS_FAN_INFO(1,REAR,2),
+    CHASSIS_FAN_INFO(2,REAR,3),
+    CHASSIS_FAN_INFO(2,REAR,4),
+    PSU_FAN_INFO(1,1),
+    PSU_FAN_INFO(2,1)
+    };
 
 #define VALIDATE(_id)                           \
     do {                                        \
@@ -82,91 +88,6 @@ onlp_fan_info_t finfo[] = {
             return ONLP_STATUS_E_INVALID;       \
         }                                       \
     } while(0)
- 
-static int
-_onlp_fani_info_get_fan(int fid, onlp_fan_info_t* info)
-{
-	int   value;
-	char  path[64] = {0};
-
-	/* get fan present status
-	 */
-	sprintf(path, "%s""fan%d_present", FAN_BOARD_PATH, fid);
-	DEBUG_PRINT("Fan(%d), present path = (%s)", fid, path);
-	
-    if (onlp_file_read_int(&value, path) < 0) {
-        AIM_LOG_ERROR("Unable to read status from file (%s)\r\n", path);
-        return ONLP_STATUS_E_INTERNAL;
-    }
-
-	if (value == 0) {
-		return ONLP_STATUS_OK;
-	}
-	info->status |= ONLP_FAN_STATUS_PRESENT;
-
-
-    /* get fan fault status (turn on when any one fails)
-     */
-	sprintf(path, "%s""fan%d_fault", FAN_BOARD_PATH, fid);
-	DEBUG_PRINT("Fan(%d), fault path = (%s)", fid, path);
-	
-    if (onlp_file_read_int(&value, path) < 0) {
-        AIM_LOG_ERROR("Unable to read status from file (%s)\r\n", path);
-        return ONLP_STATUS_E_INTERNAL;
-    }
-
-    if (value > 0) {
-        info->status |= ONLP_FAN_STATUS_FAILED;
-    }
-
-
-    /* get fan direction (both : the same)
-     */
-	sprintf(path, "%s""fan%d_direction", FAN_BOARD_PATH, fid);
-	DEBUG_PRINT("Fan(%d), direction path = (%s)", fid, path);
-	
-    if (onlp_file_read_int(&value, path) < 0) {
-        AIM_LOG_ERROR("Unable to read status from file (%s)\r\n", path);
-        return ONLP_STATUS_E_INTERNAL;
-    }
-
-    /* F2B has register value 0 as per x86-64-accton-dcs6500-48z8c-fan.c */
-    info->status |= value ? ONLP_FAN_STATUS_B2F : ONLP_FAN_STATUS_F2B;
-
-
-    /* get front fan speed
-     */
-	sprintf(path, "%s""fan%d_front_speed_rpm", FAN_BOARD_PATH, fid);
-	DEBUG_PRINT("Fan (%d), front speed path = (%s)", fid, path);
-
-    if (onlp_file_read_int(&value, path) < 0) {
-        AIM_LOG_ERROR("Unable to read status from file (%s)\r\n", path);
-        return ONLP_STATUS_E_INTERNAL;
-    }
-	info->rpm = value;
-
-	/* get rear fan speed
-	 */
-	sprintf(path, "%s""fan%d_rear_speed_rpm", FAN_BOARD_PATH, fid);
-	DEBUG_PRINT("Fan (%d), rear speed path = (%s)", fid, path);
-
-    if (onlp_file_read_int(&value, path) < 0) {
-        AIM_LOG_ERROR("Unable to read status from file (%s)\r\n", path);
-        return ONLP_STATUS_E_INTERNAL;
-    }
-
-	/* take the min value from front/rear fan speed
-	 */
-	if (info->rpm > value) {
-        info->rpm = value;
-    }
-
-    /* get speed percentage from rpm 
-	 */
-    info->percentage = (info->rpm * 100)/MAX_FAN_SPEED;
-	
-	return ONLP_STATUS_OK;
-}
 
 static int
 _onlp_fani_info_get_fan_on_psu(int pid, onlp_fan_info_t* info)
@@ -194,181 +115,293 @@ _onlp_fani_info_get_fan_on_psu(int pid, onlp_fan_info_t* info)
     return ONLP_STATUS_OK;
 }
 
-/*
- * This function will be called prior to all of onlp_fani_* functions.
- */
-int
-onlp_fani_init(void)
-{
-    int wdt_timer = 0;
-    char wdt_status_path[64] = {0};
-    char wdt_timer_path[64] = {0};
-    char wdt_max_pwm_path[64] = {0};
-    /* set wdt timer 240s */
-    wdt_timer = 0xf0;
+ static int
+ _onlp_fani_info_get_fan(int fid, onlp_fan_info_t* info)
+ {
+     int rc = ONLP_STATUS_OK;
+     int   value;
+     char  path[64] = {0};
+     char  path_front[64] = {0};
+     char  path_rear[64] = {0};
+ 
+     /* get fan present status  */
+ 
+     switch (fid)
+     {
+         case FAN_BOX1_FRONT_1:
+         case FAN_BOX1_FRONT_2:
+         case FAN_BOX1_REAR_1:
+         case FAN_BOX1_REAR_2:
+             sprintf(path, "%s""fan_present_%d", CPLD_NODE_PATH, 1);
+             break;
+         case FAN_BOX2_FRONT_3:
+         case FAN_BOX2_FRONT_4:
+         case FAN_BOX2_REAR_3:
+         case FAN_BOX2_REAR_4:
+             sprintf(path, "%s""fan_present_%d", CPLD_NODE_PATH, 2);
+             break;
+         default:
+            rc = ONLP_STATUS_E_INVALID;
+            break;
+     }
+ 
+     DEBUG_PRINT("Fan(%d), present path = (%s)", fid, path);
+     
+     if (onlp_file_read_int(&value, path) < 0) {
+         AIM_LOG_ERROR("Unable to read status from file (%s)\r\n", path);
+         return ONLP_STATUS_E_INTERNAL;
+     }
 
-    sprintf(wdt_status_path, "%s""fan_wdt_status", FAN_BOARD_PATH);
-    sprintf(wdt_timer_path, "%s""fan_wdt_timer", FAN_BOARD_PATH);
-    sprintf(wdt_max_pwm_path, "%s""fan_wdt_max_pwm", FAN_BOARD_PATH);
+     info->status |= value ? ONLP_FAN_STATUS_PRESENT : 0;
 
-    /* Set max fan pwm to full speed */
-    if (onlp_file_write_integer(wdt_max_pwm_path, FAN_BOARD_CPLD_WDT_MAX_PWM) < 0) {
-        AIM_LOG_ERROR("Unable to write data to file (%s)\r\n", wdt_max_pwm_path);
-        return ONLP_STATUS_E_INTERNAL;
+     /* get fan direction (both : the same)
+      */
+     switch (fid)
+     {
+         case FAN_BOX1_FRONT_1:
+         case FAN_BOX1_FRONT_2:
+         case FAN_BOX1_REAR_1:
+         case FAN_BOX1_REAR_2:
+             sprintf(path, "%s""fan_direction_%d", CPLD_NODE_PATH, 1);
+             break;
+         case FAN_BOX2_FRONT_3:
+         case FAN_BOX2_FRONT_4:
+         case FAN_BOX2_REAR_3:
+         case FAN_BOX2_REAR_4:
+             sprintf(path, "%s""fan_direction_%d", CPLD_NODE_PATH, 2);
+             break;
+         default:
+             rc = ONLP_STATUS_E_INVALID;
+             break;
+     }
+ 
+     DEBUG_PRINT("Fan(%d), direction path = (%s)", fid, path);
+     
+     if (onlp_file_read_int(&value, path) < 0) {
+         AIM_LOG_ERROR("Unable to read status from file (%s)\r\n", path);
+         return ONLP_STATUS_E_INTERNAL;
+     }
+ 
+     /* F2B has register value 0 as per x86-64-accton-dcs6500-48z8c-fan.c */
+     info->status |= value ? ONLP_FAN_STATUS_B2F : ONLP_FAN_STATUS_F2B;
+ 
+     /* get front fan speed
+      */
+    switch (fid)
+     {
+        case FAN_BOX1_FRONT_1:
+            sprintf(path_front, "%s""fan_front_speed_rpm_%d", CPLD_NODE_PATH, 1);
+            break;
+        case FAN_BOX1_REAR_1:
+            sprintf(path_rear, "%s""fan_rear_speed_rpm_%d", CPLD_NODE_PATH, 1);
+            break;
+        case FAN_BOX1_FRONT_2:
+            sprintf(path_front, "%s""fan_front_speed_rpm_%d", CPLD_NODE_PATH, 2);
+            break;
+        case FAN_BOX1_REAR_2:
+            sprintf(path_rear, "%s""fan_rear_speed_rpm_%d", CPLD_NODE_PATH, 2);
+            break;
+        case FAN_BOX2_FRONT_3:
+            sprintf(path_front, "%s""fan_front_speed_rpm_%d", CPLD_NODE_PATH, 3);
+            break;
+        case FAN_BOX2_REAR_3:
+            sprintf(path_rear, "%s""fan_rear_speed_rpm_%d", CPLD_NODE_PATH, 3);
+            break;
+        case FAN_BOX2_FRONT_4:
+            sprintf(path_front, "%s""fan_front_speed_rpm_%d", CPLD_NODE_PATH, 4);
+            break;
+        case FAN_BOX2_REAR_4:
+            sprintf(path_rear, "%s""fan_rear_speed_rpm_%d", CPLD_NODE_PATH, 4);
+            break;
+        default:
+            rc = ONLP_STATUS_E_INVALID;
+            break;
     }
-    /* Disable WDT */
-    if (onlp_file_write_integer(wdt_status_path, FAN_BOARD_CPLD_WDT_DISABLE) < 0) {
-        AIM_LOG_ERROR("Unable to write data to file (%s)\r\n", wdt_status_path);
-        return ONLP_STATUS_E_INTERNAL;
-    }
-    /* Enable WDT */
-    if (onlp_file_write_integer(wdt_status_path, FAN_BOARD_CPLD_WDT_ENABLE) < 0) {
-        AIM_LOG_ERROR("Unable to write data to file (%s)\r\n", wdt_status_path);
-        return ONLP_STATUS_E_INTERNAL;
-    }
-    /* Timer need to be set after enable.
-       if set timer is eralier than enable wdt. Speed will become to wdt speed after 6sec.*/
-    if (onlp_file_write_integer(wdt_timer_path, wdt_timer) < 0) {
-        AIM_LOG_ERROR("Unable to write data to file (%s)\r\n", wdt_timer_path);
-        return ONLP_STATUS_E_INTERNAL;
-    }
-
-    return ONLP_STATUS_OK;
-}
-
-int
-onlp_fani_info_get(onlp_oid_t id, onlp_fan_info_t* info)
-{
-    int rc = 0;
-    int fid;
-    VALIDATE(id);
-
-    fid = ONLP_OID_ID_GET(id);
-    *info = finfo[fid];
 
     switch (fid)
     {
-	    case FAN_1_ON_PSU_1:
-			rc = _onlp_fani_info_get_fan_on_psu(PSU1_ID, info);
-			break;
+        case FAN_BOX1_FRONT_1:
+        case FAN_BOX1_FRONT_2:
+        case FAN_BOX2_FRONT_3:
+        case FAN_BOX2_FRONT_4:   
+            if (onlp_file_read_int(&value, path_front) < 0) {
+                AIM_LOG_ERROR("Unable to read status from file (%s)\r\n", path_front);
+                return ONLP_STATUS_E_INTERNAL;
+            }
+            break;
+        case FAN_BOX1_REAR_1:
+        case FAN_BOX1_REAR_2:
+        case FAN_BOX2_REAR_3:
+        case FAN_BOX2_REAR_4:
+            if (onlp_file_read_int(&value, path_rear) < 0) {
+                AIM_LOG_ERROR("Unable to read status from file (%s)\r\n", path_rear);
+                return ONLP_STATUS_E_INTERNAL;
+            }
+            break;
+        default:
+            rc = ONLP_STATUS_E_INVALID;
+            break;
+    }
+
+    info->rpm = value;
+  
+     /* take the min value from front/rear fan speed
+     
+     if (info->rpm > value) {
+         info->rpm = value;
+     }
+     */
+     
+     /* get speed percentage from rpm 
+      */
+     info->percentage = (info->rpm * 100)/MAX_FAN_SPEED;
+     
+     return rc;
+ }
+ 
+ /*
+  * This function will be called prior to all of onlp_fani_* functions.
+  */
+ int
+ onlp_fani_init(void)
+ {
+     return ONLP_STATUS_E_UNSUPPORTED;
+ }
+ 
+ int
+ onlp_fani_info_get(onlp_oid_t id, onlp_fan_info_t* info)
+ {
+     int rc = 0;
+     int fid;
+     VALIDATE(id);
+ 
+     fid = ONLP_OID_ID_GET(id);
+     *info = finfo[fid];
+ 
+     info->status = 0;
+
+     switch (fid)
+     {
+        case FAN_1_ON_PSU_1:
+            rc = _onlp_fani_info_get_fan_on_psu(PSU1_ID, info);
+            break;
         case FAN_1_ON_PSU_2:
             rc = _onlp_fani_info_get_fan_on_psu(PSU2_ID, info);
             break;
-        case FAN_1_ON_FAN_BOARD:
-        case FAN_2_ON_FAN_BOARD:
-        case FAN_3_ON_FAN_BOARD:
-        case FAN_4_ON_FAN_BOARD:
-        case FAN_5_ON_FAN_BOARD:
-        case FAN_6_ON_FAN_BOARD:
+        case FAN_BOX1_FRONT_1:
+        case FAN_BOX1_FRONT_2:
+        case FAN_BOX1_REAR_1:
+        case FAN_BOX1_REAR_2:
+        case FAN_BOX2_FRONT_3:
+        case FAN_BOX2_FRONT_4:
+        case FAN_BOX2_REAR_3:
+        case FAN_BOX2_REAR_4:
             rc =_onlp_fani_info_get_fan(fid, info);						
             break;
         default:
             rc = ONLP_STATUS_E_INVALID;
             break;
-    }	
-    
-    return rc;
-}
-
-/*
- * This function sets the speed of the given fan in RPM.
- *
- * This function will only be called if the fan supprots the RPM_SET
- * capability.
- *
- * It is optional if you have no fans at all with this feature.
- */
-int
-onlp_fani_rpm_set(onlp_oid_t id, int rpm)
-{
-    return ONLP_STATUS_E_UNSUPPORTED;
-}
-
-/*
- * This function sets the fan speed of the given OID as a percentage.
- *
- * This will only be called if the OID has the PERCENTAGE_SET
- * capability.
- *
- * It is optional if you have no fans at all with this feature.
- */
-int
-onlp_fani_percentage_set(onlp_oid_t id, int p)
-{
-    int  fid;
-    char *path = NULL;
-
-    VALIDATE(id);
-
-    fid = ONLP_OID_ID_GET(id);
-
-    /* reject p=0 (p=0, stop fan) */
-    if (p == 0){
-        return ONLP_STATUS_E_INVALID;
-    }
-
-    switch (fid)
-	{
-        case FAN_1_ON_PSU_1:
-            return psu_pmbus_info_set(PSU1_ID, "psu_fan_duty_cycle_percentage", p);
-        case FAN_1_ON_PSU_2:
-            return psu_pmbus_info_set(PSU2_ID, "psu_fan_duty_cycle_percentage", p);
-        case FAN_1_ON_FAN_BOARD:
-        case FAN_2_ON_FAN_BOARD:
-        case FAN_3_ON_FAN_BOARD:
-        case FAN_4_ON_FAN_BOARD:
-        case FAN_5_ON_FAN_BOARD:
-        case FAN_6_ON_FAN_BOARD:
-			path = FAN_NODE(fan_duty_cycle_percentage);
-			break;
+     }	
+     
+     return rc;
+ }
+ 
+ /*
+  * This function sets the speed of the given fan in RPM.
+  *
+  * This function will only be called if the fan supprots the RPM_SET
+  * capability.
+  *
+  * It is optional if you have no fans at all with this feature.
+  */
+ int
+ onlp_fani_rpm_set(onlp_oid_t id, int rpm)
+ {
+     return ONLP_STATUS_E_UNSUPPORTED;
+ }
+ 
+ /*
+  * This function sets the fan speed of the given OID as a percentage.
+  *
+  * This will only be called if the OID has the PERCENTAGE_SET
+  * capability.
+  *
+  * It is optional if you have no fans at all with this feature.
+  */
+ int
+ onlp_fani_percentage_set(onlp_oid_t id, int p)
+ {
+     int  fid;
+     char *path = NULL;
+ 
+     VALIDATE(id);
+ 
+     fid = ONLP_OID_ID_GET(id);
+ 
+     /* reject p=0 (p=0, stop fan) */
+     if (p == 0){
+         return ONLP_STATUS_E_INVALID;
+     }
+ 
+     switch (fid)
+     {
+        case FAN_BOX1_FRONT_1:
+        case FAN_BOX1_FRONT_2:
+        case FAN_BOX1_REAR_1:
+        case FAN_BOX1_REAR_2:
+        case FAN_BOX2_FRONT_3:
+        case FAN_BOX2_FRONT_4:
+        case FAN_BOX2_REAR_3:
+        case FAN_BOX2_REAR_4:
+             path = FAN_NODE(fan_duty_cycle_percentage);
+             break;
         default:
             return ONLP_STATUS_E_INVALID;
-    }
-
-	DEBUG_PRINT("Fan path = (%s)", path);
-	
-    if (onlp_file_write_integer(path, p) < 0) {
-        AIM_LOG_ERROR("Unable to write data to file (%s)\r\n", path);
-        return ONLP_STATUS_E_INTERNAL;
-    }
-
-	return ONLP_STATUS_OK;
-}
-
-
-/*
- * This function sets the fan speed of the given OID as per
- * the predefined ONLP fan speed modes: off, slow, normal, fast, max.
- *
- * Interpretation of these modes is up to the platform.
- *
- */
-int
-onlp_fani_mode_set(onlp_oid_t id, onlp_fan_mode_t mode)
-{
-    return ONLP_STATUS_E_UNSUPPORTED;
-}
-
-/*
- * This function sets the fan direction of the given OID.
- *
- * This function is only relevant if the fan OID supports both direction
- * capabilities.
- *
- * This function is optional unless the functionality is available.
- */
-int
-onlp_fani_dir_set(onlp_oid_t id, onlp_fan_dir_t dir)
-{
-    return ONLP_STATUS_E_UNSUPPORTED;
-}
-
-/*
- * Generic fan ioctl. Optional.
- */
-int
-onlp_fani_ioctl(onlp_oid_t id, va_list vargs)
-{
-    return ONLP_STATUS_E_UNSUPPORTED;
-}
-
+     }
+ 
+     DEBUG_PRINT("Fan path = (%s)", path);
+     
+     if (onlp_file_write_integer(path, p) < 0) {
+         AIM_LOG_ERROR("Unable to write data to file (%s)\r\n", path);
+         return ONLP_STATUS_E_INTERNAL;
+     }
+ 
+     return ONLP_STATUS_OK;
+ }
+ 
+ 
+ /*
+  * This function sets the fan speed of the given OID as per
+  * the predefined ONLP fan speed modes: off, slow, normal, fast, max.
+  *
+  * Interpretation of these modes is up to the platform.
+  *
+  */
+ int
+ onlp_fani_mode_set(onlp_oid_t id, onlp_fan_mode_t mode)
+ {
+     return ONLP_STATUS_E_UNSUPPORTED;
+ }
+ 
+ /*
+  * This function sets the fan direction of the given OID.
+  *
+  * This function is only relevant if the fan OID supports both direction
+  * capabilities.
+  *
+  * This function is optional unless the functionality is available.
+  */
+ int
+ onlp_fani_dir_set(onlp_oid_t id, onlp_fan_dir_t dir)
+ {
+     return ONLP_STATUS_E_UNSUPPORTED;
+ }
+ 
+ /*
+  * Generic fan ioctl. Optional.
+  */
+ int
+ onlp_fani_ioctl(onlp_oid_t id, va_list vargs)
+ {
+     return ONLP_STATUS_E_UNSUPPORTED;
+ }
