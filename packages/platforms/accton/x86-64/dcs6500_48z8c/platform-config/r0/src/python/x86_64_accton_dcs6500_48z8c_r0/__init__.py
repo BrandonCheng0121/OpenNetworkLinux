@@ -14,6 +14,7 @@ class OnlPlatform_x86_64_accton_dcs6500_48z8c_r0(OnlPlatformAccton,
 
     def baseconfig(self):
         self.insmod('optoe')
+        self.insmod('accton_at24')
         for m in [ 'fpga', 'cpld', 'psu', 'leds' ]:
             self.insmod("x86-64-accton-dcs6500-48z8c-%s.ko" % m)
 
@@ -65,8 +66,8 @@ class OnlPlatform_x86_64_accton_dcs6500_48z8c_r0(OnlPlatformAccton,
 
             subprocess.call('echo port%d > /sys/bus/i2c/devices/%d-0050/port_name' % (i+1, sfp_map[i]), shell=True)
 
-        self.new_i2c_device('24c02', 0x50, 0)
-        self.new_i2c_device('24c02', 0x51, 6)
-        self.new_i2c_device('24c02', 0x55, 6)
+        self.new_i2c_device('accton_24c64', 0x50, 0)
+        self.new_i2c_device('accton_24c64', 0x51, 6)
+        self.new_i2c_device('accton_24c64', 0x55, 6)
 
         return True
