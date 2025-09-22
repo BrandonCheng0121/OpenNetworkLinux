@@ -737,7 +737,7 @@ static ssize_t show_rxlos_all(struct device *dev, struct device_attribute *da,
             goto exit;
         }
 
-        values[i] = ~(u8)status;
+        values[i] = (u8)status;
     }
 
     mutex_unlock(&data->update_lock);
