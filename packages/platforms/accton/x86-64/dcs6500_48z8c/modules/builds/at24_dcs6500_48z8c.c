@@ -927,7 +927,7 @@ static int at24_remove(struct i2c_client *client)
 
 static struct i2c_driver at24_driver = {
     .driver = {
-        .name = "accton_at24",
+        .name = "at24_dcs6500_48z8c",
         .acpi_match_table = ACPI_PTR(at24_acpi_ids),
     },
     .probe = at24_probe,
@@ -953,7 +953,7 @@ static void __exit at24_exit(void)
 }
 module_exit(at24_exit);
 
-MODULE_DESCRIPTION("Driver for most I2C EEPROMs");
+MODULE_DESCRIPTION("Driver for I2C EEPROMs on accton switch, dcs6500_48z8c");
 MODULE_AUTHOR("David Brownell and Wolfram Sang");
 MODULE_LICENSE("GPL");
 

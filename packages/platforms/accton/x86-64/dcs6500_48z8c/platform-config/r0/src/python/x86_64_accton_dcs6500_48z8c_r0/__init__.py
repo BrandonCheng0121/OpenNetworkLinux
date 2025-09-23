@@ -14,7 +14,7 @@ class OnlPlatform_x86_64_accton_dcs6500_48z8c_r0(OnlPlatformAccton,
 
     def baseconfig(self):
         self.insmod('optoe')
-        self.insmod('accton_at24')
+        self.insmod('at24_dcs6500_48z8c')
         for m in [ 'fpga', 'cpld', 'psu', 'leds' ]:
             self.insmod("x86-64-accton-dcs6500-48z8c-%s.ko" % m)
 
