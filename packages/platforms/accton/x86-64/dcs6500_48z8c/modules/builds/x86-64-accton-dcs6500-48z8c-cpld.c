@@ -1020,7 +1020,6 @@ static ssize_t set_duty_cycle(struct device *dev, struct device_attribute *da,
 							const char *buf, size_t count)
 {
     int error, value;
-	int status = 0;
     struct i2c_client *client = to_i2c_client(dev);
     error = kstrtoint(buf, 10, &value);
     if (error)

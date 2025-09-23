@@ -127,7 +127,7 @@ onlp_sysi_oids_get(onlp_oid_t* table, int max)
 }
 
 static char* cpld_ver_path[NUM_OF_CPLD] = {
-    "/sys/bus/i2c/devices/157-0062/version", /* FPGA */
+    "/sys/class/fpga_class/fpga/version", /* FPGA */
     "/sys/bus/i2c/devices/157-0062/version", /* CPLD-1 */
     "/sys/bus/i2c/devices/158-0064/version"  /* CPLD-2 */
 };
@@ -151,8 +151,7 @@ onlp_sysi_platform_info_get(onlp_platform_info_t* pi)
         }
     }
 
-    pi->cpld_versions = aim_fstrdup("\r\nFPGA:%s\r\nCPLD-1:%s"
-                                    "\r\nCPLD-2:%s",
+    pi->cpld_versions = aim_fstrdup("FPGA:%s CPLD-1:%s CPLD-2:%s",
                                     ver[0], ver[1], ver[2]);
 
     return 0;

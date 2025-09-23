@@ -1129,6 +1129,22 @@ static struct file_operations fpga_fops = {
     .release        = fpga_release,
 };
 
+
+static ssize_t show_fpga_version(struct device *dev, struct device_attribute *attr, char *buf)
+{
+    int val = 0;
+
+	val = fpga_pcie_read(0x00);
+    if (val < 0) {
+        ERROR_DEBUG( "[%s] Fail to read fpga version\n", __func__);
+    }
+
+    return sprintf(buf, "%x.%x\n", (val>>24)&0xff, (val>>16)&0xff);
+}
+
+static struct device_attribute ver = __ATTR(version, 0600, show_fpga_version, NULL);
+
+
 static int fpga_pci_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 {
     int retval = 0;
@@ -1172,6 +1188,12 @@ static int fpga_pci_probe(struct pci_dev *pdev, const struct pci_device_id *id)
         goto fail_to_create_fpga_udev;
     }
     I2C_DEBUG( "[%s] fpga_udev created\n", __func__);
+
+	if (sysfs_create_file(&fpga_pci_dev->fpga_udev->kobj, &ver.attr))
+	{
+        goto fail_to_enable_pci_device;
+	}
+    I2C_DEBUG( "[%s] fpga version sysfs created\n", __func__);
 
     retval = pci_enable_device(pdev);
     if (retval)
