@@ -48,21 +48,35 @@ static struct accton_dcs6500_48z8c_led_data  *ledctl = NULL;
 /* LED related data
  */
 
-/* LED has only red, green and blue.
- * Amber  =  red + green.
- * Purple =  red + blue.
- */
+#define LED_CNTRLER_I2C_ADDRESS	(0x62)
 
-#define LED_CNTRLER_I2C_ADDRESS	(0x60)
+#define LED_TYPE_SYS_REG_MASK (0x6)
+#define LED_MODE_SYS_GREEN_VALUE (0x0)
+#define LED_MODE_SYS_RED_VALUE (0x1)
+#define LED_MODE_SYS_GREEN_BLINK_VALUE (0x2)
 
-#define LED_TYPE_DIAG_REG_MASK          (0x3F)
-#define LED_MODE_DIAG_OFF_VALUE         (0x07)
-#define LED_TYPE_LOC_REG_MASK           (0x3F)
-#define LED_MODE_LOC_OFF_VALUE          (0x07)
+#define LED_TYPE_MST_REG_MASK (0x38)
+#define LED_MODE_MST_YELLOW_VALUE (0x0)
+#define LED_MODE_MST_GREEN_BLINK_VALUE (0x20)
+#define LED_MODE_MST_GREEN_VALUE (0x28)
+#define LED_MODE_MST_RED_VALUE (0x30)
+#define LED_MODE_MST_OFF_VALUE (0x38)
+
+#define LED_TYPE_USB_REG_MASK (0xC0)
+#define LED_MODE_USB_OFF_VALUE (0xC0)
+#define LED_MODE_USB_GREEN_VALUE (0x40)
+#define LED_MODE_USB_RED_VALUE (0x80)
+#define LED_MODE_USB_GREEN_BLINK_VALUE (0xC0)
+
+#define LED_TYPE_ID_REG_MASK (0x10)
+#define LED_MODE_ID_OFF_VALUE (0x0)
+#define LED_MODE_ID_BLUE_VALUE (0x10)
 
 enum led_type {
-    LED_TYPE_DIAG,
-    LED_TYPE_LOC,
+    LED_TYPE_SYS,
+    LED_TYPE_MST,
+    LED_TYPE_ID,
+    LED_TYPE_USB,
     LED_TYPE_FAN,
     LED_TYPE_PSU1,
     LED_TYPE_PSU2
@@ -74,23 +88,17 @@ struct led_reg {
 };
 
 static const struct led_reg led_reg_map[] = {
-    {(1<<LED_TYPE_DIAG), 0x24},
-    {(1<<LED_TYPE_LOC) , 0x25},
+    { (1<<LED_TYPE_USB) | (1<<LED_TYPE_MST) | (1<<LED_TYPE_SYS) , 0x78 },
+    { (1<<LED_TYPE_ID) , 0x2A },
 };
-
 
 enum led_light_mode {
     LED_MODE_OFF = 0,
     LED_MODE_RED,
     LED_MODE_GREEN,
-    LED_MODE_BLUE,
-    LED_MODE_AMBER,
-    LED_MODE_PURPLE,
-    LED_MODE_RED_BLINK,
+    LED_MODE_YELLOW,
     LED_MODE_GREEN_BLINK,
-    LED_MODE_BLUE_BLINK,
-    LED_MODE_AMBER_BLINK,
-    LED_MODE_PURPLE_BLINK,
+    LED_MODE_BLUE,
     LED_MODE_AUTO,
     LED_MODE_UNKNOWN
 };
@@ -100,33 +108,26 @@ struct led_type_mode {
     enum led_light_mode mode;
     int  reg_bit_mask;
     int  mode_value;
-    int  mode_value_blinking;
 };
 
 static struct led_type_mode led_type_mode_data[] = {
-    {LED_TYPE_DIAG,  LED_MODE_OFF,	        LED_TYPE_DIAG_REG_MASK,   LED_MODE_DIAG_OFF_VALUE},
-    {LED_TYPE_DIAG,  LED_MODE_RED,	        LED_TYPE_DIAG_REG_MASK,   0x06,   0x06},
-    {LED_TYPE_DIAG,  LED_MODE_GREEN,	    LED_TYPE_DIAG_REG_MASK,   0x05,   0x05},
-    {LED_TYPE_DIAG,  LED_MODE_BLUE,	        LED_TYPE_DIAG_REG_MASK,   0x03,   0x03},
-    {LED_TYPE_DIAG,  LED_MODE_AMBER,	    LED_TYPE_DIAG_REG_MASK,   0x04,   0x04},
-    {LED_TYPE_DIAG,  LED_MODE_PURPLE,       LED_TYPE_DIAG_REG_MASK,   0x02,   0x02},
-    {LED_TYPE_DIAG,  LED_MODE_RED_BLINK,	LED_TYPE_DIAG_REG_MASK,   0x0f,   0x0e},
-    {LED_TYPE_DIAG,  LED_MODE_GREEN_BLINK,	LED_TYPE_DIAG_REG_MASK,   0x17,   0x15},
-    {LED_TYPE_DIAG,  LED_MODE_BLUE_BLINK,	LED_TYPE_DIAG_REG_MASK,   0x27,   0x23},
-    {LED_TYPE_DIAG,  LED_MODE_AMBER_BLINK,	LED_TYPE_DIAG_REG_MASK,   0x1f,   0x1c},
-    {LED_TYPE_DIAG,  LED_MODE_PURPLE_BLINK,	LED_TYPE_DIAG_REG_MASK,   0x2f,   0x2a},
+{LED_TYPE_SYS, LED_MODE_GREEN,       LED_TYPE_SYS_REG_MASK,  LED_MODE_SYS_GREEN_VALUE},
+{LED_TYPE_SYS, LED_MODE_RED,         LED_TYPE_SYS_REG_MASK,  LED_MODE_SYS_RED_VALUE},
+{LED_TYPE_SYS, LED_MODE_GREEN_BLINK, LED_TYPE_SYS_REG_MASK,  LED_MODE_SYS_GREEN_BLINK_VALUE},
 
-    {LED_TYPE_LOC,  LED_MODE_OFF,	        LED_TYPE_LOC_REG_MASK,   LED_MODE_LOC_OFF_VALUE},
-    {LED_TYPE_LOC,  LED_MODE_RED,	        LED_TYPE_LOC_REG_MASK,   0x06,   0x06},
-    {LED_TYPE_LOC,  LED_MODE_GREEN,	        LED_TYPE_LOC_REG_MASK,   0x05,   0x05},
-    {LED_TYPE_LOC,  LED_MODE_BLUE,	        LED_TYPE_LOC_REG_MASK,   0x03,   0x03},
-    {LED_TYPE_LOC,  LED_MODE_AMBER,	        LED_TYPE_LOC_REG_MASK,   0x04,   0x04},
-    {LED_TYPE_LOC,  LED_MODE_PURPLE,        LED_TYPE_LOC_REG_MASK,   0x02,   0x02},
-    {LED_TYPE_LOC,  LED_MODE_RED_BLINK,	    LED_TYPE_LOC_REG_MASK,   0x0f,   0x0e},
-    {LED_TYPE_LOC,  LED_MODE_GREEN_BLINK,	LED_TYPE_LOC_REG_MASK,   0x17,   0x15},
-    {LED_TYPE_LOC,  LED_MODE_BLUE_BLINK,	LED_TYPE_LOC_REG_MASK,   0x27,   0x23},
-    {LED_TYPE_LOC,  LED_MODE_AMBER_BLINK,	LED_TYPE_LOC_REG_MASK,   0x1f,   0x1c},
-    {LED_TYPE_LOC,  LED_MODE_PURPLE_BLINK,	LED_TYPE_LOC_REG_MASK,   0x2f,   0x2a},
+{LED_TYPE_MST, LED_MODE_YELLOW,      LED_TYPE_MST_REG_MASK,  LED_MODE_MST_YELLOW_VALUE},
+{LED_TYPE_MST, LED_MODE_GREEN_BLINK, LED_TYPE_MST_REG_MASK,  LED_MODE_MST_GREEN_BLINK_VALUE},
+{LED_TYPE_MST, LED_MODE_GREEN,       LED_TYPE_MST_REG_MASK,  LED_MODE_MST_GREEN_VALUE},
+{LED_TYPE_MST, LED_MODE_RED,         LED_TYPE_MST_REG_MASK,  LED_MODE_MST_RED_VALUE},
+{LED_TYPE_MST, LED_MODE_OFF,         LED_TYPE_MST_REG_MASK,  LED_MODE_MST_OFF_VALUE},
+
+{LED_TYPE_USB, LED_MODE_OFF,         LED_TYPE_USB_REG_MASK,  LED_MODE_USB_OFF_VALUE},
+{LED_TYPE_USB, LED_MODE_GREEN,       LED_TYPE_USB_REG_MASK,  LED_MODE_USB_GREEN_VALUE},
+{LED_TYPE_USB, LED_MODE_RED,         LED_TYPE_USB_REG_MASK,  LED_MODE_USB_RED_VALUE},
+{LED_TYPE_USB, LED_MODE_GREEN_BLINK, LED_TYPE_USB_REG_MASK,  LED_MODE_USB_GREEN_BLINK_VALUE},
+
+{LED_TYPE_ID,  LED_MODE_OFF,         LED_TYPE_ID_REG_MASK,   LED_MODE_ID_OFF_VALUE},
+{LED_TYPE_ID,  LED_MODE_BLUE,        LED_TYPE_ID_REG_MASK,   LED_MODE_ID_BLUE_VALUE},
 };
 
 
@@ -153,20 +154,18 @@ static int accton_getLedReg(enum led_type type, u8 *reg)
 
 static int led_reg_val_to_light_mode(enum led_type type, u8 reg_val) {
     int i;
+	
+	for (i = 0; i < ARRAY_SIZE(led_type_mode_data); i++) {
+		if (type != led_type_mode_data[i].type) {
+			continue;
+		}
 
-    for (i = 0; i < ARRAY_SIZE(led_type_mode_data); i++) {
-        if (type != led_type_mode_data[i].type)
-        {
-            continue;
-        }
-
-        if (((led_type_mode_data[i].reg_bit_mask & reg_val) == led_type_mode_data[i].mode_value)
-            || ((led_type_mode_data[i].reg_bit_mask & reg_val) == led_type_mode_data[i].mode_value_blinking))
-        {
-            return led_type_mode_data[i].mode;
-        }
-    }
-
+		if ((led_type_mode_data[i].reg_bit_mask & reg_val) == 
+			 led_type_mode_data[i].mode_value) {
+			return led_type_mode_data[i].mode;
+		}
+	}
+	
     return 0;
 }
 
@@ -180,7 +179,6 @@ static u8 led_light_mode_to_reg_val(enum led_type type,
 
         if (mode != led_type_mode_data[i].mode)
             continue;
-
         reg_val = led_type_mode_data[i].mode_value |
                   (reg_val & (~led_type_mode_data[i].reg_bit_mask));
         break;
@@ -208,6 +206,7 @@ static void accton_dcs6500_48z8c_led_update(void)
         int i;
 
         dev_dbg(&ledctl->pdev->dev, "Starting accton_dcs6500_48z8c_led update\n");
+		ledctl->valid = 0;
 
         /* Update LED data
          */
@@ -215,7 +214,6 @@ static void accton_dcs6500_48z8c_led_update(void)
             int status = accton_dcs6500_48z8c_led_read_value(led_reg_map[i].reg_addr);
 
             if (status < 0) {
-                ledctl->valid = 0;
                 dev_dbg(&ledctl->pdev->dev, "reg %d, err %d\n", led_reg_map[i].reg_addr, status);
                 goto exit;
             }
@@ -237,55 +235,77 @@ static void accton_dcs6500_48z8c_led_set(struct led_classdev *led_cdev,
                                       enum led_brightness led_light_mode,
                                       enum led_type type)
 {
-    int reg_val;
-    u8 reg	;
-
-    mutex_lock(&ledctl->update_lock);
+	int reg_val;
+    u8 reg;
+	
+	mutex_lock(&ledctl->update_lock);
 
     if( !accton_getLedReg(type, &reg))
     {
         dev_dbg(&ledctl->pdev->dev, "Not match item for %d.\n", type);
     }
 
-    reg_val = accton_dcs6500_48z8c_led_read_value(reg);
+	reg_val = accton_dcs6500_48z8c_led_read_value(reg);
+	if (reg_val < 0) {
+		dev_dbg(&ledctl->pdev->dev, "reg %d, err %d\n", reg, reg_val);
+		goto exit;
+	}
 
-    if (reg_val < 0) {
-        dev_dbg(&ledctl->pdev->dev, "reg %d, err %d\n", reg, reg_val);
-        goto exit;
-    }
-    reg_val = led_light_mode_to_reg_val(type, led_light_mode, reg_val);
-    accton_dcs6500_48z8c_led_write_value(reg, reg_val);
-
-    /* to prevent the slow-update issue */
-    ledctl->valid = 0;
-
+	reg_val = led_light_mode_to_reg_val(type, led_light_mode, reg_val);
+	accton_dcs6500_48z8c_led_write_value(reg, reg_val);
+	ledctl->valid = 0;
+	
 exit:
-    mutex_unlock(&ledctl->update_lock);
+	mutex_unlock(&ledctl->update_lock);
 }
 
 
-static void accton_dcs6500_48z8c_led_diag_set(struct led_classdev *led_cdev,
+static void accton_dcs6500_48z8c_led_sys_set(struct led_classdev *led_cdev,
         enum led_brightness led_light_mode)
 {
-    accton_dcs6500_48z8c_led_set(led_cdev, led_light_mode,  LED_TYPE_DIAG);
+    accton_dcs6500_48z8c_led_set(led_cdev, led_light_mode,  LED_TYPE_SYS);
 }
 
-static enum led_brightness accton_dcs6500_48z8c_led_diag_get(struct led_classdev *cdev)
+static enum led_brightness accton_dcs6500_48z8c_led_sys_get(struct led_classdev *cdev)
 {
     accton_dcs6500_48z8c_led_update();
-    return led_reg_val_to_light_mode(LED_TYPE_DIAG, ledctl->reg_val[0]);
+    return led_reg_val_to_light_mode(LED_TYPE_SYS, ledctl->reg_val[0]);
 }
 
-static void accton_dcs6500_48z8c_led_loc_set(struct led_classdev *led_cdev,
+static void accton_dcs6500_48z8c_led_mst_set(struct led_classdev *led_cdev,
         enum led_brightness led_light_mode)
 {
-    accton_dcs6500_48z8c_led_set(led_cdev, led_light_mode, LED_TYPE_LOC);
+    accton_dcs6500_48z8c_led_set(led_cdev, led_light_mode, LED_TYPE_MST);
 }
 
-static enum led_brightness accton_dcs6500_48z8c_led_loc_get(struct led_classdev *cdev)
+static enum led_brightness accton_dcs6500_48z8c_led_mst_get(struct led_classdev *cdev)
 {
     accton_dcs6500_48z8c_led_update();
-    return led_reg_val_to_light_mode(LED_TYPE_LOC, ledctl->reg_val[1]);
+    return led_reg_val_to_light_mode(LED_TYPE_MST, ledctl->reg_val[1]);
+}
+
+static void accton_dcs6500_48z8c_led_usb_set(struct led_classdev *led_cdev,
+        enum led_brightness led_light_mode)
+{
+    accton_dcs6500_48z8c_led_set(led_cdev, led_light_mode, LED_TYPE_USB);
+}
+
+static enum led_brightness accton_dcs6500_48z8c_led_usb_get(struct led_classdev *cdev)
+{
+    accton_dcs6500_48z8c_led_update();
+    return led_reg_val_to_light_mode(LED_TYPE_USB, ledctl->reg_val[1]);
+}
+
+static void accton_dcs6500_48z8c_led_id_set(struct led_classdev *led_cdev,
+        enum led_brightness led_light_mode)
+{
+    accton_dcs6500_48z8c_led_set(led_cdev, led_light_mode, LED_TYPE_ID);
+}
+
+static enum led_brightness accton_dcs6500_48z8c_led_id_get(struct led_classdev *cdev)
+{
+    accton_dcs6500_48z8c_led_update();
+    return led_reg_val_to_light_mode(LED_TYPE_ID, ledctl->reg_val[1]);
 }
 
 static void accton_dcs6500_48z8c_led_auto_set(struct led_classdev *led_cdev,
@@ -299,21 +319,37 @@ static enum led_brightness accton_dcs6500_48z8c_led_auto_get(struct led_classdev
 }
 
 static struct led_classdev accton_dcs6500_48z8c_leds[] = {
-    [LED_TYPE_DIAG] = {
-        .name			 = "accton_dcs6500_48z8c_led::diag",
+    [LED_TYPE_SYS] = {
+        .name			 = "accton_dcs6500_48z8c_led::sys",
         .default_trigger = "unused",
-        .brightness_set	 = accton_dcs6500_48z8c_led_diag_set,
-        .brightness_get	 = accton_dcs6500_48z8c_led_diag_get,
+        .brightness_set	 = accton_dcs6500_48z8c_led_sys_set,
+        .brightness_get	 = accton_dcs6500_48z8c_led_sys_get,
         .flags			 = LED_CORE_SUSPENDRESUME,
-        .max_brightness	 = LED_MODE_PURPLE_BLINK,
+        .max_brightness	 = LED_MODE_GREEN_BLINK,
     },
-    [LED_TYPE_LOC] = {
-        .name			 = "accton_dcs6500_48z8c_led::loc",
+    [LED_TYPE_MST] = {
+        .name			 = "accton_dcs6500_48z8c_led::mst",
         .default_trigger = "unused",
-        .brightness_set	 = accton_dcs6500_48z8c_led_loc_set,
-        .brightness_get	 = accton_dcs6500_48z8c_led_loc_get,
+        .brightness_set	 = accton_dcs6500_48z8c_led_mst_set,
+        .brightness_get	 = accton_dcs6500_48z8c_led_mst_get,
         .flags			 = LED_CORE_SUSPENDRESUME,
-        .max_brightness	 = LED_MODE_PURPLE_BLINK,
+        .max_brightness	 = LED_MODE_GREEN_BLINK,
+    },
+    [LED_TYPE_USB] = {
+        .name			 = "accton_dcs6500_48z8c_led::usb",
+        .default_trigger = "unused",
+        .brightness_set	 = accton_dcs6500_48z8c_led_usb_set,
+        .brightness_get	 = accton_dcs6500_48z8c_led_usb_get,
+        .flags			 = LED_CORE_SUSPENDRESUME,
+        .max_brightness	 = LED_MODE_GREEN_BLINK,
+    },
+    [LED_TYPE_ID] = {
+        .name			 = "accton_dcs6500_48z8c_led::id",
+        .default_trigger = "unused",
+        .brightness_set	 = accton_dcs6500_48z8c_led_id_set,
+        .brightness_get	 = accton_dcs6500_48z8c_led_id_get,
+        .flags			 = LED_CORE_SUSPENDRESUME,
+        .max_brightness	 = LED_MODE_GREEN_BLINK,
     },
     [LED_TYPE_FAN] = {
         .name			 = "accton_dcs6500_48z8c_led::fan",
