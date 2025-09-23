@@ -656,25 +656,6 @@ static const struct attribute_group dcs6500_48z8c_cpld2_group = {
 	.attrs = dcs6500_48z8c_cpld2_attributes,
 };
 
-/*Split a number into bytes and insert blank between any 2 of bytes.*/
-static int string_byte_sep(char *out, int bits, u64 bytes)
-{ 
-    int i;
-    char sb[8];
-   
-    if (!out) 
-        return -EINVAL;
-
-    out[0] = 0; 
-    for (i = 0; i < ((bits+7)/8); i++) {
-        sprintf(sb, "%02llx ", (bytes>>(i*8))&0xff);
-        strncat(out, sb, strlen(sb));
-    }
-    out[strlen(out)-1] = 0;
-
-    return 0;
-}
-
 static ssize_t show_present_all(struct device *dev, struct device_attribute *da,
              char *buf)
 {

@@ -408,7 +408,6 @@ static ssize_t show_ascii(struct device *dev, struct device_attribute *da, char 
 
 static ssize_t show_vout(struct device *dev, struct device_attribute *da, char *buf)
 {
-    struct i2c_client *client = to_i2c_client(dev);
     struct dcs6500_48z8c_data *data = dcs6500_48z8c_update_device(dev);
     int status = 0;
     long val = 0;

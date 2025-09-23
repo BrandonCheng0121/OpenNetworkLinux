@@ -127,9 +127,9 @@ onlp_sysi_oids_get(onlp_oid_t* table, int max)
 }
 
 static char* cpld_ver_path[NUM_OF_CPLD] = {
-    "/sys/bus/i2c/devices/157-0062/", /* FPGA */
-    "/sys/bus/i2c/devices/157-0062/", /* CPLD-1 */
-    "/sys/bus/i2c/devices/158-0064/"  /* CPLD-2 */
+    "/sys/bus/i2c/devices/157-0062/version", /* FPGA */
+    "/sys/bus/i2c/devices/157-0062/version", /* CPLD-1 */
+    "/sys/bus/i2c/devices/158-0064/version"  /* CPLD-2 */
 };
 
 int

@@ -33,7 +33,7 @@
 #define CHASSIS_THERMAL_COUNT	4
 #define CHASSIS_PSU_COUNT		2
 #define CHASSIS_PSU_THERMAL_COUNT   2
-#define CHASSIS_LED_COUNT		3
+#define CHASSIS_LED_COUNT		4
 
 #define PSU1_ID 1
 #define PSU2_ID 2
@@ -67,6 +67,7 @@ typedef enum psu_type {
 } psu_type_t;
 
 psu_type_t get_psu_type(int id, char* modelname, int modelname_len);
+int psu_pmbus_model_name_get(int id, char *model, int model_len);
 int psu_pmbus_serial_number_get(int id, char *serial, int serial_len);
 
 //#define DEBUG_MODE 1

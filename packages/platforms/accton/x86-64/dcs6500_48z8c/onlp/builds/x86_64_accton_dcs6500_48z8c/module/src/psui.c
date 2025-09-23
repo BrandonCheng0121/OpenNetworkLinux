@@ -96,6 +96,8 @@ psu_detail_info_get(onlp_psu_info_t* info)
         info->caps |= ONLP_PSU_CAPS_PIN;
     }
 
+    psu_pmbus_model_name_get(index, info->model, sizeof(info->model));
+
     psu_pmbus_serial_number_get(index, info->serial, sizeof(info->serial));
 
     return ONLP_STATUS_OK;
