@@ -58,11 +58,14 @@ enum onlp_led_id
 
 enum led_light_mode {
     LED_MODE_OFF = 0,
-    LED_MODE_RED,
     LED_MODE_GREEN,
-    LED_MODE_YELLOW,
+    LED_MODE_AMBER,
+    LED_MODE_RED,
     LED_MODE_BLUE,
     LED_MODE_GREEN_BLINK,
+    LED_MODE_AMBER_BLINK,
+    LED_MODE_RED_BLINK,
+    LED_MODE_BLUE_BLINK,
     LED_MODE_AUTO,
     LED_MODE_UNKNOWN
 };
@@ -77,7 +80,7 @@ led_light_mode_map_t led_map[] = {
 {LED_SYS, LED_MODE_GREEN,        ONLP_LED_MODE_GREEN},
 {LED_SYS, LED_MODE_RED,          ONLP_LED_MODE_RED},
 {LED_SYS, LED_MODE_GREEN_BLINK,  ONLP_LED_MODE_GREEN_BLINKING},
-{LED_BMC, LED_MODE_YELLOW,       ONLP_LED_MODE_ORANGE},
+{LED_BMC, LED_MODE_AMBER,        ONLP_LED_MODE_ORANGE},
 {LED_BMC, LED_MODE_GREEN_BLINK,  ONLP_LED_MODE_GREEN_BLINKING},
 {LED_BMC, LED_MODE_GREEN,        ONLP_LED_MODE_GREEN},
 {LED_BMC, LED_MODE_RED,          ONLP_LED_MODE_RED},
@@ -97,7 +100,7 @@ static char last_path[][10] =  /* must map with onlp_led_id */
 {
     "reserved",
     "sys",
-    "mst",
+    "bmc",
     "id",
     "usb",
     "fan",
