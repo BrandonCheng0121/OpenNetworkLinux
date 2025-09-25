@@ -29,8 +29,15 @@
 
 #define PSU_PREFIX_PATH  "/sys/bus/i2c/devices/"
 
-#define MAX_FAN_SPEED     25500
-#define MAX_PSU_FAN_SPEED 23000
+/*
+Although in HW spec.
+    Offset 0x43 FAN1_FRONT_MAX_SET_SPEED     0xDC = 220
+    Offset 0x4B FAN1_REAR_MAX_SET_SPEED      0xB6 = 182
+But we refer to muxi's fani.c.
+*/
+#define MAX_FRONT_FAN_SPEED     30000
+#define MAX_REAR_FAN_SPEED      25000
+#define MAX_PSU_FAN_SPEED       23000
 
 #define XSTR(s) STR(s)
 #define STR(s) #s
@@ -228,6 +235,8 @@ _onlp_fani_info_get_fan_on_psu(int pid, onlp_fan_info_t* info)
                 AIM_LOG_ERROR("Unable to read status from file (%s)\r\n", path_front);
                 return ONLP_STATUS_E_INTERNAL;
             }
+            info->rpm = value;
+            info->percentage = (info->rpm * 100) / MAX_FRONT_FAN_SPEED;
             break;
         case FAN_BOX1_REAR_1:
         case FAN_BOX1_REAR_2:
@@ -237,26 +246,15 @@ _onlp_fani_info_get_fan_on_psu(int pid, onlp_fan_info_t* info)
                 AIM_LOG_ERROR("Unable to read status from file (%s)\r\n", path_rear);
                 return ONLP_STATUS_E_INTERNAL;
             }
+            info->rpm = value;
+            info->percentage = (info->rpm * 100) / MAX_REAR_FAN_SPEED;
             break;
         default:
             rc = ONLP_STATUS_E_INVALID;
             break;
     }
 
-    info->rpm = value;
-  
-     /* take the min value from front/rear fan speed
-     
-     if (info->rpm > value) {
-         info->rpm = value;
-     }
-     */
-     
-     /* get speed percentage from rpm 
-      */
-     info->percentage = (info->rpm * 100)/MAX_FAN_SPEED;
-     
-     return rc;
+    return rc;
  }
  
  /*
@@ -331,20 +329,20 @@ _onlp_fani_info_get_fan_on_psu(int pid, onlp_fan_info_t* info)
  int
  onlp_fani_percentage_set(onlp_oid_t id, int p)
  {
-     int  fid;
-     char *path = NULL;
- 
-     VALIDATE(id);
- 
-     fid = ONLP_OID_ID_GET(id);
- 
-     /* reject p=0 (p=0, stop fan) */
-     if (p == 0){
-         return ONLP_STATUS_E_INVALID;
-     }
- 
-     switch (fid)
-     {
+    int  fid;
+    char *path = NULL;
+
+    VALIDATE(id);
+
+    fid = ONLP_OID_ID_GET(id);
+
+    /* reject p=0 (p=0, stop fan) */
+    if (p == 0){
+        return ONLP_STATUS_E_INVALID;
+    }
+
+    switch (fid)
+    {
         case FAN_BOX1_FRONT_1:
         case FAN_BOX1_FRONT_2:
         case FAN_BOX1_REAR_1:
@@ -353,20 +351,22 @@ _onlp_fani_info_get_fan_on_psu(int pid, onlp_fan_info_t* info)
         case FAN_BOX2_FRONT_4:
         case FAN_BOX2_REAR_3:
         case FAN_BOX2_REAR_4:
-             path = FAN_NODE(fan_duty_cycle_percentage);
-             break;
+            path = FAN_NODE(fan_duty_cycle_percentage);
+            break;
         default:
             return ONLP_STATUS_E_INVALID;
-     }
- 
-     DEBUG_PRINT("Fan path = (%s)", path);
-     
-     if (onlp_file_write_integer(path, p) < 0) {
-         AIM_LOG_ERROR("Unable to write data to file (%s)\r\n", path);
-         return ONLP_STATUS_E_INTERNAL;
-     }
- 
-     return ONLP_STATUS_OK;
+    }
+
+    DEBUG_PRINT("Fan path = (%s)", path);
+
+    if (onlp_file_write_integer(path, p) < 0) {
+        AIM_LOG_ERROR("Unable to write data to file (%s)\r\n", path);
+        return ONLP_STATUS_E_INTERNAL;
+    }
+
+    AIM_LOG_MSG("Set fan_duty_cycle_percentage (%s)=(%d)\r\n", path, p);
+
+    return ONLP_STATUS_OK;
  }
  
  
