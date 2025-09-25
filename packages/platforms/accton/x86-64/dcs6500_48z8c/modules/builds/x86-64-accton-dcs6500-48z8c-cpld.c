@@ -72,6 +72,8 @@ static const u8 fan_reg[] = {
     0x3F,      /* rear fan2 speed(rpm) */
     0x40,      /* rear fan3 speed(rpm) */
     0x41,      /* rear fan4 speed(rpm) */
+    0x2e,      /* fan watchdog en */
+    0x2f,      /* fan watchdog setting */
 };
 
 #define FAN_WATCHDOG_EN_REG 0x2E
@@ -340,7 +342,9 @@ enum dcs6500_48z8c_cpld_sysfs_attributes {
 	FAN_REAR_SPEED_RPM_ATTR_ID(3),
 	FAN_REAR_SPEED_RPM_ATTR_ID(4),
 	FAN_DUTY_CYCLE_PERCENTAGE,
-
+	FAN_WDT_ENABLE,
+	FAN_WDT_CLEAR,
+	FAN_WDT_COUNT,
 };
 
 /* sysfs attributes for hwmon 
@@ -368,6 +372,12 @@ static struct dcs6500_48z8c_cpld_data *dcs6500_48z8c_fan_update_device(struct de
 static ssize_t fan_show_value(struct device *dev, struct device_attribute *da, char *buf);
 static ssize_t set_duty_cycle(struct device *dev, struct device_attribute *da,
                               const char *buf, size_t count);
+static ssize_t set_fan_wdt_status(struct device *dev, struct device_attribute *da,
+                                const char *buf, size_t count);
+static ssize_t set_fan_wdt_clear(struct device *dev, struct device_attribute *da,
+                                const char *buf, size_t count);
+static ssize_t set_fan_wdt_count(struct device *dev, struct device_attribute *da,
+                                const char *buf, size_t count);
 
 /* transceiver attributes */
 #define DECLARE_SFP_TRANSCEIVER_SENSOR_DEVICE_ATTR(index) \
@@ -412,6 +422,15 @@ static ssize_t set_duty_cycle(struct device *dev, struct device_attribute *da,
     static SENSOR_DEVICE_ATTR(fan_duty_cycle_percentage, S_IWUSR | S_IRUGO, fan_show_value, set_duty_cycle, FAN_DUTY_CYCLE_PERCENTAGE);
 #define DECLARE_FAN_DUTY_CYCLE_ATTR(index) \
     &sensor_dev_attr_fan_duty_cycle_percentage.dev_attr.attr
+
+#define DECLARE_FAN_WDT_SENSOR_DEV_ATTR() \
+    static SENSOR_DEVICE_ATTR(fan_wdt_status, S_IWUSR | S_IRUGO, fan_show_value, set_fan_wdt_status, FAN_WDT_ENABLE);\
+    static SENSOR_DEVICE_ATTR(fan_wdt_clear, S_IWUSR | S_IRUGO, fan_show_value, set_fan_wdt_clear, FAN_WDT_CLEAR);\
+    static SENSOR_DEVICE_ATTR(fan_wdt_count, S_IWUSR | S_IRUGO, fan_show_value, set_fan_wdt_count, FAN_WDT_COUNT)
+#define DECLARE_FAN_WDT_STATUS_ATTR() &sensor_dev_attr_fan_wdt_status.dev_attr.attr
+#define DECLARE_FAN_WDT_CLEAR_ATTR() &sensor_dev_attr_fan_wdt_clear.dev_attr.attr
+#define DECLARE_FAN_WDT_COUNT_ATTR() &sensor_dev_attr_fan_wdt_count.dev_attr.attr
+
 
 static SENSOR_DEVICE_ATTR(version, S_IRUGO, show_version, NULL, CPLD_VERSION);
 static SENSOR_DEVICE_ATTR(access, S_IWUSR, NULL, access, ACCESS);
@@ -488,6 +507,7 @@ DECLARE_FAN_SENSOR_ATTR2(2);
 DECLARE_FAN_SENSOR_ATTR2(3);
 DECLARE_FAN_SENSOR_ATTR2(4);
 DECLARE_FAN_DUTY_CYCLE_SENSOR_DEV_ATTR(1);
+DECLARE_FAN_WDT_SENSOR_DEV_ATTR();
 
 static struct attribute *dcs6500_48z8c_cpld1_attributes[] = {
     &sensor_dev_attr_version.dev_attr.attr,
@@ -518,6 +538,9 @@ static struct attribute *dcs6500_48z8c_cpld1_attributes[] = {
 	DECLARE_FAN_REAR_ATTR(3),
 	DECLARE_FAN_REAR_ATTR(4),
 	DECLARE_FAN_DUTY_CYCLE_ATTR(1),
+	DECLARE_FAN_WDT_STATUS_ATTR(),
+	DECLARE_FAN_WDT_CLEAR_ATTR(),
+	DECLARE_FAN_WDT_COUNT_ATTR(),
 	NULL
 };
 
@@ -1035,6 +1058,94 @@ static ssize_t set_duty_cycle(struct device *dev, struct device_attribute *da,
 	return count;
 }
 
+static ssize_t set_fan_wdt_status(struct device *dev, struct device_attribute *da,
+                                  const char *buf, size_t count)
+{
+    int status, value;
+    struct i2c_client *client = to_i2c_client(dev);
+    int reg = 0x2e;
+
+    status = kstrtoint(buf, 10, &value);
+    if (status) {
+        return status;
+    }
+    if (value < 0 || value > 1) {
+        return -EINVAL;
+    }
+
+	status = dcs6500_48z8c_cpld_read_internal(client, reg);
+	if (unlikely(status < 0)) {
+		return status;
+	}
+
+    if (value) {
+        status |= value;
+    }
+    else {
+        status = 0;
+    }
+
+    status = dcs6500_48z8c_cpld_write_internal(client, reg, status);
+	if (unlikely(status < 0)) {
+        return status;
+    }
+
+    return count;
+}
+
+static ssize_t set_fan_wdt_clear(struct device *dev, struct device_attribute *da,
+                                 const char *buf, size_t count)
+{
+    int status, value;
+    struct i2c_client *client = to_i2c_client(dev);
+    int reg = 0x2e;
+
+    status = kstrtoint(buf, 10, &value);
+    if (status) {
+        return status;
+    }
+    if (value != 1) {
+        return -EINVAL;
+    }
+
+	status = dcs6500_48z8c_cpld_read_internal(client, reg);
+	if (unlikely(status < 0)) {
+		return status;
+	}
+
+    status |= (value << 1);
+
+    status = dcs6500_48z8c_cpld_write_internal(client, reg, status);
+	if (unlikely(status < 0)) {
+        return status;
+    }
+
+    return count;
+}
+
+static ssize_t set_fan_wdt_count(struct device *dev, struct device_attribute *da,
+                                 const char *buf, size_t count)
+{
+    int status, value;
+    struct i2c_client *client = to_i2c_client(dev);
+    int reg = 0x2f;
+
+    status = kstrtoint(buf, 10, &value);
+    if (status) {
+        return status;
+    }
+    if (value < 0 || value > 0x3f) {
+        return -EINVAL;
+    }
+
+    status = dcs6500_48z8c_cpld_write_internal(client, reg, value);
+	if (unlikely(status < 0)) {
+        return status;
+    }
+
+    return count;
+}
+
 static u8 reg_val_to_direction(u8 reg_val, enum fan_box_id id)
 {
     u8 mask = (1 << (1-id));
@@ -1084,6 +1195,15 @@ static ssize_t fan_show_value(struct device *dev, struct device_attribute *da, c
             case FAN_REAR_SPEED_RPM_3:
             case FAN_REAR_SPEED_RPM_4:
                 ret = sprintf(buf, "%u\n", reg_val_to_speed_rpm(data->reg_fan_val[attr->index - FAN_REAR_SPEED_RPM_1 + 9]));
+                break;
+            case FAN_WDT_ENABLE:
+                ret = sprintf(buf, "%d\n", (data->reg_fan_val[13] & 0x1));
+                break;
+            case FAN_WDT_CLEAR:
+                ret = sprintf(buf, "%d\n", ((data->reg_fan_val[13] & 0x2) >> 1));
+                break;
+            case FAN_WDT_COUNT:
+                ret = sprintf(buf, "%d\n", (data->reg_fan_val[14] & 0x3f));
                 break;
             default:
                 break;
