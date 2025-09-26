@@ -194,8 +194,8 @@ fan_ctrl_policy_t  fan_thermal_policy[] = {
     {30,   0,      45000, LEVEL_FAN_DEF},
     {70,   45000,  55000, LEVEL_FAN_MID},
     {100,  55000,  65000, LEVEL_FAN_MAX},
-    {100,  65000,  90000, LEVEL_TEMP_HIGH},
-    {100,  90000, 100000, LEVEL_TEMP_CRITICAL},
+    {100,  65000,  70000, LEVEL_TEMP_HIGH},
+    {100,  70000,  75000, LEVEL_TEMP_CRITICAL},
 };
 
 #define FAN_SPEED_CTRL_PATH "/sys/bus/i2c/devices/157-0062/fan_duty_cycle_percentage"
