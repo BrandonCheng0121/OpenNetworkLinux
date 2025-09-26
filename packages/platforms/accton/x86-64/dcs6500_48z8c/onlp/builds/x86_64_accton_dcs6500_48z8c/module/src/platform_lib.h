@@ -49,6 +49,10 @@
 
 #define CPLD_NODE_PATH	"/sys/bus/i2c/devices/i2c-157/157-0062/"
 #define FAN_NODE(node)	CPLD_NODE_PATH#node
+#define FAN_WDT_ENABLE       0x1
+#define FAN_WDT_DISABLE      0x0
+#define FAN_WDT_CLEAR        0x1
+
 
 #define IDPROM_PATH "/sys/bus/i2c/devices/0-0050/eeprom"
 

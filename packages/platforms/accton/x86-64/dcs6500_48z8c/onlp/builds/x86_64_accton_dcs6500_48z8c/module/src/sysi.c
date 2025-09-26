@@ -213,6 +213,51 @@ int onlp_sysi_platform_manage_fans(void)
     onlp_thermal_info_t thermali[3];
     char  buf[10] = {0};
 
+    int fan_wdt_status = 0;
+    char *fan_wdt_status_path = FAN_NODE(fan_wdt_status);
+    char *fan_wdt_clear_path = FAN_NODE(fan_wdt_clear);
+    static int failed_cnt = 0;
+    static int failed_first_log = 0;
+
+    /*  Check fan wdt state, if wdt disable, enable wdt */
+    if (onlp_file_read_int(&fan_wdt_status, fan_wdt_status_path) < 0) {
+        failed_cnt++;
+    }
+    else
+    {
+        if (fan_wdt_status == FAN_WDT_DISABLE)
+        {
+            AIM_SYSLOG_WARN("Fan-WDT Disable", "Fan-WDT Disable","Alarm for Fan-WDT Disable is detected");
+            /* Enable WDT */
+            if (onlp_file_write_integer(fan_wdt_status_path, FAN_WDT_ENABLE) < 0) {
+                failed_cnt++;
+            }
+        }
+        else
+        {
+            /* clear */
+            if (onlp_file_write_integer(fan_wdt_clear_path, FAN_WDT_CLEAR) < 0) {
+                failed_cnt++;
+            }
+        }
+    }
+    /* To ensure generate log message for first failed */
+    if((failed_first_log == 0) && (failed_cnt > 0))
+    {
+        failed_first_log = 1;
+        AIM_LOG_ERROR("Unable to read status from file (%s) or (%s)\r\n", fan_wdt_status_path, fan_wdt_clear_path);
+    }
+    /* Print the error log if the total falied counts equal or over 360 counts.
+       It can decrese number of log message.
+       polling every 10 sec. Polling 360 counts for one hour if it is failed to access fan cpld watchdog.
+    */
+    if(failed_cnt >= 360)
+    {
+        failed_cnt = 0;
+        AIM_LOG_ERROR("Unable to read status from file (%s) or (%s)\r\n", fan_wdt_status_path, fan_wdt_clear_path);
+    }
+
+
     /* Get current temperature */
     for (i=0; i<3; i++)
     {
